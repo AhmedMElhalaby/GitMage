@@ -306,12 +306,10 @@ final class GitRepositoryClientTests: XCTestCase {
         try await client.stageAllChanges(in: repoURL.path)
         try await client.commit(message: "First commit", in: repoURL.path)
 
-        try await client.createBranch("scratch", in: repoURL.path)          // creates + checks out
-        try await client.checkoutBranch("main", in: repoURL.path)           // may be master; see note
-
-        // Fall back if the default branch is "master".
+        try await client.createBranch("scratch", in: repoURL.path)   // creates + checks out scratch
+        // Return to the repo's default branch (main or master) before deleting scratch.
         let branches = try await client.loadBranches(at: repoURL.path)
-        let base = branches.first(where: { $0.name == "main" }) != nil ? "main" : "master"
+        let base = try XCTUnwrap(branches.first(where: { $0.name != "scratch" })?.name)
         try await client.checkoutBranch(base, in: repoURL.path)
         try await client.deleteBranch("scratch", in: repoURL.path)
 
