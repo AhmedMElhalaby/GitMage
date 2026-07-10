@@ -6,8 +6,14 @@ struct ChangesContextPane: View {
     let tokens: HostThemeTokens
     let accent: Color
 
-    private var staged: [GitChange] { model.snapshot?.changes.filter { $0.isIndexStaged } ?? [] }
-    private var unstaged: [GitChange] { model.snapshot?.changes.filter { !$0.isIndexStaged } ?? [] }
+    private var staged: [GitChange] { model.snapshot?.changes.filter { $0.hasStagedComponent } ?? [] }
+    private var unstaged: [GitChange] { model.snapshot?.changes.filter { $0.hasUnstagedComponent } ?? [] }
+
+    /// Group-scoped selection key ("staged:<id>" / "unstaged:<id>") so a file that
+    /// appears in both groups only highlights the side the user actually clicked.
+    /// The VM's `selectedChangeID` (plain change id) still drives which change the
+    /// stage/unstage/discard actions target and is left untouched.
+    @State private var selectedRowID: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,12 +36,13 @@ struct ChangesContextPane: View {
                     Spacer()
                     Text("\(count)").font(AinkradFont.mono(10)).foregroundStyle(tokens.foreground.opacity(0.5))
                 }
-                ForEach(changes) { change in
-                    ChangeRow(change: change, isSelected: model.selectedChangeID == change.id, staged: staged, tokens: tokens, accent: accent,
-                              onSelect: { model.selectChange(change) },
-                              onStage: { model.selectChange(change); model.stageSelectedChange() },
-                              onUnstage: { model.selectChange(change); model.unstageSelectedChange() },
-                              onDiscard: { model.selectChange(change); model.discardSelectedChange() })
+                ForEach(changes, id: \.id) { change in
+                    let rowID = "\(staged ? "staged" : "unstaged"):\(change.id)"
+                    ChangeRow(change: change, isSelected: selectedRowID == rowID, staged: staged, tokens: tokens, accent: accent,
+                              onSelect: { selectedRowID = rowID; model.selectChange(change) },
+                              onStage: { selectedRowID = rowID; model.selectChange(change); model.stageSelectedChange() },
+                              onUnstage: { selectedRowID = rowID; model.selectChange(change); model.unstageSelectedChange() },
+                              onDiscard: { selectedRowID = rowID; model.selectChange(change); model.discardSelectedChange() })
                 }
             }
         }
