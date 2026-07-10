@@ -48,15 +48,3 @@ final class GitMageWorkspaceStoreTests: XCTestCase {
     }
 }
 
-private final class MemoryDocumentStore: PluginDocumentStore {
-    private var storage: [String: Data] = [:]
-
-    func data(forKey key: String) -> Data? {
-        storage[key]
-    }
-
-    func setData(_ data: Data?, forKey key: String) {
-        storage[key] = data
-    }
-}
-
