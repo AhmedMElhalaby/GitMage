@@ -30,7 +30,7 @@ protocol GitForgeProvider {
     func listPullRequests(_ repo: RepoRef, state: PRState) async throws -> [PullRequestSummary]
     func pullRequest(_ repo: RepoRef, number: Int) async throws -> PullRequestDetail
     func files(_ repo: RepoRef, number: Int) async throws -> [PRFile]
-    func comments(_ repo: RepoRef, number: Int) async throws -> [PRComment]
+    func comments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment]
     func checks(_ repo: RepoRef, ref: String) async throws -> [CheckRun]
     func addComment(_ repo: RepoRef, number: Int, body: String) async throws
     func submitReview(_ repo: RepoRef, number: Int, event: ReviewEvent, body: String) async throws

@@ -29,7 +29,7 @@ final class PullRequestsViewModelTests: XCTestCase {
         let provider = StubForgeProvider()
         provider.detail = makeDetail()
         provider.prFiles = [PRFile(filename: "a.swift", status: "modified", patch: nil)]
-        provider.prComments = [PRComment(id: 1, author: "alice", body: "hi", createdAt: "now")]
+        provider.prComments = [ForgeComment(id: 1, author: "alice", body: "hi", createdAt: "now")]
         provider.checkRuns = [CheckRun(id: 1, name: "CI", status: "completed", conclusion: "success")]
 
         let vm = PullRequestsViewModel(repo: repo, provider: provider, auth: GitForgeAuth(secrets: MemorySecretStore()))
@@ -109,7 +109,7 @@ private final class StubForgeProvider: GitForgeProvider {
     var summaries: [PullRequestSummary] = []
     var detail: PullRequestDetail?
     var prFiles: [PRFile] = []
-    var prComments: [PRComment] = []
+    var prComments: [ForgeComment] = []
     var checkRuns: [CheckRun] = []
     var verifyError: ForgeError?
     var listPullRequestsError: ForgeError?
@@ -142,7 +142,7 @@ private final class StubForgeProvider: GitForgeProvider {
         prFiles
     }
 
-    func comments(_ repo: RepoRef, number: Int) async throws -> [PRComment] {
+    func comments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment] {
         prComments
     }
 

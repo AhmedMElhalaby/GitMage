@@ -17,7 +17,7 @@ final class PullRequestsViewModel: ObservableObject {
     @Published var selectedPRNumber: Int?
     @Published var detail: PullRequestDetail?
     @Published var files: [PRFile] = []
-    @Published var comments: [PRComment] = []
+    @Published var comments: [ForgeComment] = []
     @Published var checks: [CheckRun] = []
     @Published var filter: PRState = .open
     @Published var isLoading = false
