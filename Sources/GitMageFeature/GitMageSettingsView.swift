@@ -4,14 +4,21 @@ import AinkradAppKit
 struct GitMageSettingsView: View {
     let settingsStore: GitMageSettingsStore
     let theme: HostTheme
+    let host: HostServices
+
+    @State private var tokenDraft: String = ""
+    @State private var githubStatus: String?
+    @State private var isVerifying: Bool = false
 
     private var tokens: HostThemeTokens { theme.tokens }
     private var settings: GitMageSettings { settingsStore.settings }
+    private var auth: GitForgeAuth { GitForgeAuth(secrets: host.secrets) }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 appearanceSection
+                githubSection
                 aboutSection
             }
             .padding(18)
@@ -20,6 +27,11 @@ struct GitMageSettingsView: View {
         .scrollContentBackground(.hidden)
         .background(tokens.background)
         .foregroundStyle(tokens.foreground)
+        .onAppear {
+            if auth.token() != nil {
+                githubStatus = "A token is saved."
+            }
+        }
     }
 
     private var appearanceSection: some View {
@@ -83,6 +95,117 @@ struct GitMageSettingsView: View {
                 .tint(tokens.accentPrimary)
             }
         }
+    }
+
+    private var githubSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SettingsSectionHeader(title: "GITHUB", tokens: tokens)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Personal access token")
+                    .font(AinkradFont.display(12, weight: .medium))
+                    .foregroundStyle(tokens.foreground.opacity(0.85))
+
+                SecureField("Personal access token", text: $tokenDraft)
+                    .textFieldStyle(.plain)
+                    .font(AinkradFont.mono(12))
+                    .foregroundStyle(tokens.foreground)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(tokens.surfaceElevated.opacity(0.5))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(tokens.accentPrimary.opacity(0.2))
+                    )
+
+                HStack(spacing: 10) {
+                    Button {
+                        saveAndVerify()
+                    } label: {
+                        HStack(spacing: 6) {
+                            if isVerifying {
+                                ProgressView()
+                                    .controlSize(.small)
+                            }
+                            Text("Save & Verify")
+                        }
+                        .font(AinkradFont.display(12, weight: .medium))
+                        .foregroundStyle(tokens.foreground)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(tokens.surfaceElevated.opacity(0.5))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(tokens.accentPrimary.opacity(0.2))
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(tokenDraft.isEmpty || isVerifying)
+
+                    if auth.token() != nil {
+                        Button {
+                            signOut()
+                        } label: {
+                            Text("Sign out")
+                                .font(AinkradFont.display(12, weight: .medium))
+                                .foregroundStyle(tokens.foreground.opacity(0.85))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(tokens.surfaceElevated.opacity(0.5))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .strokeBorder(tokens.accentPrimary.opacity(0.2))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                if let githubStatus {
+                    Text(githubStatus)
+                        .font(AinkradFont.display(11))
+                        .foregroundStyle(tokens.foreground.opacity(0.6))
+                }
+
+                Text("Create a token with the `repo` scope at github.com → Settings → Developer settings → Personal access tokens.")
+                    .font(AinkradFont.display(11))
+                    .foregroundStyle(tokens.foreground.opacity(0.45))
+            }
+        }
+    }
+
+    private func saveAndVerify() {
+        auth.setToken(tokenDraft)
+        let token = tokenDraft
+        isVerifying = true
+        githubStatus = nil
+        Task { @MainActor in
+            defer { isVerifying = false }
+            do {
+                let provider = GitHubProvider(token: token)
+                let user = try await provider.verify()
+                githubStatus = "Signed in as \(user.login)."
+            } catch let error as ForgeError {
+                githubStatus = error.errorDescription
+            } catch {
+                githubStatus = error.localizedDescription
+            }
+        }
+    }
+
+    private func signOut() {
+        auth.clear()
+        tokenDraft = ""
+        githubStatus = nil
     }
 
     private var aboutSection: some View {

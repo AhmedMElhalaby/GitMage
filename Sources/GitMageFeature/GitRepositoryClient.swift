@@ -289,6 +289,14 @@ actor GitRepositoryClient {
         return GitLogParser.parse(output: output)
     }
 
+    func remoteInfo(in path: String) throws -> RepoRef? {
+        let rootURL = try repositoryRootURL(for: path)
+        let url = (try? runGit(["remote", "get-url", "origin"], in: rootURL))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url, !url.isEmpty else { return nil }
+        return RemoteInfoParser.parse(remoteURL: url)
+    }
+
     func loadCommitDiff(sha: String, in path: String) throws -> GitDiffSnapshot {
         let rootURL = try repositoryRootURL(for: path)
         let output = try runGit(

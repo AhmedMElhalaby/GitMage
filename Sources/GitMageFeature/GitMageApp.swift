@@ -13,7 +13,8 @@ public struct GitMageApp: AinkradApp {
     public static func makeSettingsView(host: HostServices) -> AnyView {
         AnyView(GitMageSettingsView(
             settingsStore: GitMageRuntime.settingsStore(for: host),
-            theme: host.theme
+            theme: host.theme,
+            host: host
         ))
     }
 

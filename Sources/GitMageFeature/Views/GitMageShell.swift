@@ -5,6 +5,8 @@ struct GitMageShell: View {
     let host: HostServices
     let settingsStore: GitMageSettingsStore
     @StateObject private var model: GitMageViewModel
+    @State private var prModel: PullRequestsViewModel?
+    @State private var prHasGitHubRemote = false
 
     init(host: HostServices, settingsStore: GitMageSettingsStore) {
         self.host = host
@@ -37,6 +39,9 @@ struct GitMageShell: View {
         .background(tokens.surface.opacity(appearance.backgroundOpacity))
         .foregroundStyle(tokens.foreground)
         .task { model.bootstrapIfNeeded() }
+        .task(id: PRTaskKey(area: model.selectedArea, repoID: model.activeRepoID)) {
+            await buildPRModelIfNeeded()
+        }
         .alert("Initialize a new Git repository?", isPresented: $model.showInitPrompt) {
             Button("Cancel", role: .cancel) { model.cancelInitPendingRepository() }
             Button("Initialize") { model.confirmInitPendingRepository() }
@@ -128,6 +133,12 @@ struct GitMageShell: View {
         case .history: HistoryContextPane(model: model, tokens: tokens)
         case .branches: BranchesContextPane(model: model, tokens: tokens)
         case .stashes: StashesContextPane(model: model, tokens: tokens)
+        case .pullRequests:
+            if let prModel {
+                PullRequestsContextPane(model: prModel, tokens: tokens, hasGitHubRemote: prHasGitHubRemote)
+            } else {
+                ComingSoonView(area: model.selectedArea, tokens: tokens)
+            }
         default: EmptyView()
         }
     }
@@ -137,7 +148,33 @@ struct GitMageShell: View {
         case .changes: DiffView(diff: model.diffSnapshot, tokens: tokens, fontSize: appearance.diffFontSize)
         case .history: DiffView(diff: model.commitDiff, tokens: tokens, fontSize: appearance.diffFontSize)
         case .branches, .stashes: DiffView(diff: model.diffSnapshot, tokens: tokens, fontSize: appearance.diffFontSize)
+        case .pullRequests:
+            if let prModel {
+                PullRequestDetailView(model: prModel, tokens: tokens, fontSize: appearance.diffFontSize)
+            } else {
+                ComingSoonView(area: model.selectedArea, tokens: tokens)
+            }
         default: ComingSoonView(area: model.selectedArea, tokens: tokens)
+        }
+    }
+
+    private struct PRTaskKey: Equatable {
+        let area: NavArea
+        let repoID: String?
+    }
+
+    private func buildPRModelIfNeeded() async {
+        guard model.selectedArea == .pullRequests else { return }
+        let remote = await model.currentRemote()
+        prHasGitHubRemote = remote?.host.lowercased().contains("github.com") == true
+        let auth = GitForgeAuth(secrets: host.secrets)
+        let token = auth.token()
+        let provider: GitForgeProvider? = token.map { GitHubProvider(token: $0) }
+        let newModel = PullRequestsViewModel(repo: remote, provider: provider, auth: auth)
+        prModel = newModel
+        await newModel.verify()
+        if remote != nil && token != nil {
+            await newModel.load()
         }
     }
 
