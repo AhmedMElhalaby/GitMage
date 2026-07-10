@@ -7,6 +7,8 @@ struct GitMageShell: View {
     @StateObject private var model: GitMageViewModel
     @State private var prModel: PullRequestsViewModel?
     @State private var prHasGitHubRemote = false
+    @State private var issuesModel: IssuesViewModel?
+    @State private var issuesHasGitHubRemote = false
     @State private var worktreesModel: WorktreesViewModel?
 
     init(host: HostServices, settingsStore: GitMageSettingsStore) {
@@ -42,6 +44,9 @@ struct GitMageShell: View {
         .task { model.bootstrapIfNeeded() }
         .task(id: PRTaskKey(area: model.selectedArea, repoID: model.activeRepoID)) {
             await buildPRModelIfNeeded()
+        }
+        .task(id: IssuesTaskKey(area: model.selectedArea, repoID: model.activeRepoID)) {
+            await buildIssuesModelIfNeeded()
         }
         .task(id: WorktreesTaskKey(isActive: model.selectedArea == .worktrees, repoID: model.activeRepoID)) {
             await buildWorktreesModelIfNeeded()
@@ -143,6 +148,12 @@ struct GitMageShell: View {
             } else {
                 ComingSoonView(area: model.selectedArea, tokens: tokens)
             }
+        case .issues:
+            if let issuesModel {
+                IssuesContextPane(model: issuesModel, tokens: tokens, hasGitHubRemote: issuesHasGitHubRemote)
+            } else {
+                ComingSoonView(area: model.selectedArea, tokens: tokens)
+            }
         case .worktrees:
             if let worktreesModel {
                 WorktreesContextPane(model: worktreesModel, tokens: tokens)
@@ -161,6 +172,12 @@ struct GitMageShell: View {
         case .pullRequests:
             if let prModel {
                 PullRequestDetailView(model: prModel, tokens: tokens, fontSize: appearance.diffFontSize)
+            } else {
+                ComingSoonView(area: model.selectedArea, tokens: tokens)
+            }
+        case .issues:
+            if let issuesModel {
+                IssueDetailView(model: issuesModel, tokens: tokens)
             } else {
                 ComingSoonView(area: model.selectedArea, tokens: tokens)
             }
@@ -191,6 +208,11 @@ struct GitMageShell: View {
         let repoID: String?
     }
 
+    private struct IssuesTaskKey: Equatable {
+        let area: NavArea
+        let repoID: String?
+    }
+
     private struct WorktreesTaskKey: Equatable {
         let isActive: Bool
         let repoID: String?
@@ -205,6 +227,21 @@ struct GitMageShell: View {
         let provider: GitForgeProvider? = token.map { GitHubProvider(token: $0) }
         let newModel = PullRequestsViewModel(repo: remote, provider: provider, auth: auth)
         prModel = newModel
+        await newModel.verify()
+        if remote != nil && token != nil {
+            await newModel.load()
+        }
+    }
+
+    private func buildIssuesModelIfNeeded() async {
+        guard model.selectedArea == .issues else { return }
+        let remote = await model.currentRemote()
+        issuesHasGitHubRemote = remote?.host.lowercased().contains("github.com") == true
+        let auth = GitForgeAuth(secrets: host.secrets)
+        let token = auth.token()
+        let provider: GitForgeProvider? = token.map { GitHubProvider(token: $0) }
+        let newModel = IssuesViewModel(repo: remote, provider: provider, auth: auth)
+        issuesModel = newModel
         await newModel.verify()
         if remote != nil && token != nil {
             await newModel.load()

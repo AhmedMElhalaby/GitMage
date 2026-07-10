@@ -67,8 +67,8 @@ struct GHComment: Codable {
     let body: String
     let createdAt: String
 
-    func toModel() -> PRComment {
-        PRComment(id: id, author: user.login, body: body, createdAt: createdAt)
+    func toModel() -> ForgeComment {
+        ForgeComment(id: id, author: user.login, body: body, createdAt: createdAt)
     }
 }
 
@@ -95,4 +95,40 @@ struct GHCheckRun: Codable {
 
 struct GHCheckRunsEnvelope: Codable {
     let checkRuns: [GHCheckRun]
+}
+
+struct GHLabel: Codable {
+    let name: String
+    let color: String
+
+    func toModel() -> IssueLabel {
+        IssueLabel(name: name, color: color)
+    }
+}
+
+struct GHPullRequestMarker: Codable {}   // presence indicates the "issue" is actually a PR
+
+struct GHIssue: Codable {
+    let number: Int
+    let title: String
+    let body: String?
+    let state: String
+    let user: GHUser
+    let labels: [GHLabel]
+    let assignees: [GHUser]
+    let comments: Int
+    let pullRequest: GHPullRequestMarker?   // JSON "pull_request" via convertFromSnakeCase
+
+    var isPullRequest: Bool { pullRequest != nil }
+
+    func toSummary() -> IssueSummary {
+        IssueSummary(id: number, number: number, title: title, author: user.login,
+                     state: state, labelNames: labels.map { $0.name }, commentCount: comments)
+    }
+
+    func toDetail() -> IssueDetail {
+        IssueDetail(number: number, title: title, body: body ?? "", state: state,
+                    author: user.login, labels: labels.map { $0.toModel() },
+                    assignees: assignees.map { $0.login })
+    }
 }

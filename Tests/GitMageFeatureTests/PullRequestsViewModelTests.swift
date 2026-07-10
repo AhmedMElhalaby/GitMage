@@ -29,7 +29,7 @@ final class PullRequestsViewModelTests: XCTestCase {
         let provider = StubForgeProvider()
         provider.detail = makeDetail()
         provider.prFiles = [PRFile(filename: "a.swift", status: "modified", patch: nil)]
-        provider.prComments = [PRComment(id: 1, author: "alice", body: "hi", createdAt: "now")]
+        provider.prComments = [ForgeComment(id: 1, author: "alice", body: "hi", createdAt: "now")]
         provider.checkRuns = [CheckRun(id: 1, name: "CI", status: "completed", conclusion: "success")]
 
         let vm = PullRequestsViewModel(repo: repo, provider: provider, auth: GitForgeAuth(secrets: MemorySecretStore()))
@@ -109,7 +109,7 @@ private final class StubForgeProvider: GitForgeProvider {
     var summaries: [PullRequestSummary] = []
     var detail: PullRequestDetail?
     var prFiles: [PRFile] = []
-    var prComments: [PRComment] = []
+    var prComments: [ForgeComment] = []
     var checkRuns: [CheckRun] = []
     var verifyError: ForgeError?
     var listPullRequestsError: ForgeError?
@@ -142,7 +142,7 @@ private final class StubForgeProvider: GitForgeProvider {
         prFiles
     }
 
-    func comments(_ repo: RepoRef, number: Int) async throws -> [PRComment] {
+    func comments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment] {
         prComments
     }
 
@@ -162,4 +162,15 @@ private final class StubForgeProvider: GitForgeProvider {
     func merge(_ repo: RepoRef, number: Int, method: MergeMethod) async throws {
         mergeCalls.append(method)
     }
+
+    func listIssues(_ repo: RepoRef, state: IssueState) async throws -> [IssueSummary] { [] }
+    func issue(_ repo: RepoRef, number: Int) async throws -> IssueDetail { throw ForgeError.notFound }
+    func issueComments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment] { [] }
+    func repoLabels(_ repo: RepoRef) async throws -> [IssueLabel] { [] }
+    func assignableUsers(_ repo: RepoRef) async throws -> [ForgeUser] { [] }
+    func createIssue(_ repo: RepoRef, title: String, body: String, labels: [String], assignees: [String]) async throws -> Int { 0 }
+    func addIssueComment(_ repo: RepoRef, number: Int, body: String) async throws {}
+    func setIssueState(_ repo: RepoRef, number: Int, state: IssueState) async throws {}
+    func setLabels(_ repo: RepoRef, number: Int, labels: [String]) async throws {}
+    func setAssignees(_ repo: RepoRef, number: Int, assignees: [String]) async throws {}
 }

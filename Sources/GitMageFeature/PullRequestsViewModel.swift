@@ -6,23 +6,16 @@ import Foundation
 /// remote and a configured GitHub token.
 @MainActor
 final class PullRequestsViewModel: ObservableObject {
-    enum AuthState: Equatable {
-        case unknown
-        case missingToken
-        case valid(String)
-        case invalid(String)
-    }
-
     @Published var pullRequests: [PullRequestSummary] = []
     @Published var selectedPRNumber: Int?
     @Published var detail: PullRequestDetail?
     @Published var files: [PRFile] = []
-    @Published var comments: [PRComment] = []
+    @Published var comments: [ForgeComment] = []
     @Published var checks: [CheckRun] = []
     @Published var filter: PRState = .open
     @Published var isLoading = false
     @Published var errorMessage: String?
-    @Published var authState: AuthState = .unknown
+    @Published var authState: ForgeAuthState = .unknown
 
     private let repo: RepoRef?
     private nonisolated(unsafe) let provider: GitForgeProvider?

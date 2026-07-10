@@ -30,11 +30,22 @@ protocol GitForgeProvider {
     func listPullRequests(_ repo: RepoRef, state: PRState) async throws -> [PullRequestSummary]
     func pullRequest(_ repo: RepoRef, number: Int) async throws -> PullRequestDetail
     func files(_ repo: RepoRef, number: Int) async throws -> [PRFile]
-    func comments(_ repo: RepoRef, number: Int) async throws -> [PRComment]
+    func comments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment]
     func checks(_ repo: RepoRef, ref: String) async throws -> [CheckRun]
     func addComment(_ repo: RepoRef, number: Int, body: String) async throws
     func submitReview(_ repo: RepoRef, number: Int, event: ReviewEvent, body: String) async throws
     func merge(_ repo: RepoRef, number: Int, method: MergeMethod) async throws
+
+    func listIssues(_ repo: RepoRef, state: IssueState) async throws -> [IssueSummary]
+    func issue(_ repo: RepoRef, number: Int) async throws -> IssueDetail
+    func issueComments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment]
+    func repoLabels(_ repo: RepoRef) async throws -> [IssueLabel]
+    func assignableUsers(_ repo: RepoRef) async throws -> [ForgeUser]
+    func createIssue(_ repo: RepoRef, title: String, body: String, labels: [String], assignees: [String]) async throws -> Int
+    func addIssueComment(_ repo: RepoRef, number: Int, body: String) async throws
+    func setIssueState(_ repo: RepoRef, number: Int, state: IssueState) async throws
+    func setLabels(_ repo: RepoRef, number: Int, labels: [String]) async throws
+    func setAssignees(_ repo: RepoRef, number: Int, assignees: [String]) async throws
 }
 
 /// Wraps the host's `PluginSecretStore` to read/write the GitHub token.

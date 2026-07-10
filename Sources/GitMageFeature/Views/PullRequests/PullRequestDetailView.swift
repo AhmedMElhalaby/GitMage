@@ -175,7 +175,7 @@ struct PullRequestDetailView: View {
 }
 
 private struct CommentRow: View {
-    let comment: PRComment
+    let comment: ForgeComment
     let tokens: HostThemeTokens
 
     var body: some View {

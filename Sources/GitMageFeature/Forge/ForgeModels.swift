@@ -56,7 +56,7 @@ struct PullRequestDetail: Equatable {
     let baseBranch: String
 }
 
-struct PRComment: Identifiable, Equatable {
+struct ForgeComment: Identifiable, Equatable {
     let id: Int
     let author: String
     let body: String
@@ -75,4 +75,36 @@ struct CheckRun: Identifiable, Equatable {
     let name: String
     let status: String
     let conclusion: String?
+}
+
+enum IssueState: String, Codable {
+    case open
+    case closed
+    case all
+}
+
+struct IssueLabel: Identifiable, Equatable {
+    var id: String { name }
+    let name: String
+    let color: String
+}
+
+struct IssueSummary: Identifiable, Equatable {
+    let id: Int
+    let number: Int
+    let title: String
+    let author: String
+    let state: String
+    let labelNames: [String]
+    let commentCount: Int
+}
+
+struct IssueDetail: Equatable {
+    let number: Int
+    let title: String
+    let body: String
+    let state: String
+    let author: String
+    let labels: [IssueLabel]
+    let assignees: [String]
 }
