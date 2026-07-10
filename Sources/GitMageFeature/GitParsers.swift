@@ -232,3 +232,14 @@ enum GitWorktreeParser {
         return result
     }
 }
+
+enum GitTagParser {
+    static func parse(_ output: String) -> [GitTag] {
+        output.split(separator: "\n", omittingEmptySubsequences: true).compactMap { line in
+            let parts = line.split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+            guard let name = parts.first, !name.isEmpty else { return nil }
+            let msg = parts.count > 1 ? parts[1].trimmingCharacters(in: .whitespaces) : ""
+            return GitTag(name: name, message: msg.isEmpty ? nil : msg)
+        }
+    }
+}

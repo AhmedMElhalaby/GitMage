@@ -383,7 +383,7 @@ actor GitRepositoryClient {
         }
     }
 
-    private func repositoryRootURL(for path: String) throws -> URL {
+    func repositoryRootURL(for path: String) throws -> URL {
         if let cached = rootCache[path] {
             return URL(fileURLWithPath: cached)
         }
@@ -393,7 +393,7 @@ actor GitRepositoryClient {
         return URL(fileURLWithPath: rootPath)
     }
 
-    private func hasHead(in repositoryURL: URL) throws -> Bool {
+    func hasHead(in repositoryURL: URL) throws -> Bool {
         do {
             _ = try runGit(["rev-parse", "--verify", "HEAD"], in: repositoryURL)
             return true
@@ -402,7 +402,12 @@ actor GitRepositoryClient {
         }
     }
 
-    private func runGit(_ arguments: [String], in repositoryURL: URL, acceptedExitCodes: Set<Int32> = [0]) throws -> String {
+    func runGit(
+        _ arguments: [String],
+        in repositoryURL: URL,
+        acceptedExitCodes: Set<Int32> = [0],
+        environment: [String: String]? = nil
+    ) throws -> String {
         let process = Process()
         let stdout = Pipe()
         let stderr = Pipe()
@@ -411,6 +416,14 @@ actor GitRepositoryClient {
         process.arguments = ["git", "-C", repositoryURL.path] + arguments
         process.standardOutput = stdout
         process.standardError = stderr
+
+        if let environment {
+            var mergedEnvironment = ProcessInfo.processInfo.environment
+            for (key, value) in environment {
+                mergedEnvironment[key] = value
+            }
+            process.environment = mergedEnvironment
+        }
 
         do {
             try process.run()
