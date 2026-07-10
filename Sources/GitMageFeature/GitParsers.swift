@@ -1,5 +1,36 @@
 import Foundation
 
+enum RemoteInfoParser {
+    /// Parses an https or scp-style git remote URL into host/owner/name.
+    static func parse(remoteURL: String) -> RepoRef? {
+        var s = remoteURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.hasSuffix(".git") { s = String(s.dropLast(4)) }
+        if s.hasSuffix("/") { s = String(s.dropLast()) }
+
+        // scp-style: git@host:owner/repo
+        if let at = s.range(of: "@"), let colon = s.range(of: ":", range: at.upperBound..<s.endIndex) {
+            let host = String(s[at.upperBound..<colon.lowerBound])
+            let path = String(s[colon.upperBound...])
+            return Self.ref(host: host, path: path)
+        }
+        // url-style: scheme://host/owner/repo
+        if let schemeRange = s.range(of: "://") {
+            let rest = String(s[schemeRange.upperBound...])
+            guard let firstSlash = rest.firstIndex(of: "/") else { return nil }
+            let host = String(rest[..<firstSlash])
+            let path = String(rest[rest.index(after: firstSlash)...])
+            return Self.ref(host: host, path: path)
+        }
+        return nil
+    }
+
+    private static func ref(host: String, path: String) -> RepoRef? {
+        let parts = path.split(separator: "/").map(String.init)
+        guard parts.count >= 2 else { return nil }
+        return RepoRef(host: host, owner: parts[0], name: parts[1])
+    }
+}
+
 enum GitStatusParser {
     static func parse(statusOutput: String, repositoryRoot: String, lastCommitSummary: String?) -> GitRepositorySnapshot {
         let lines = statusOutput.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
