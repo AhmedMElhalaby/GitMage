@@ -22,11 +22,15 @@ struct GitMageRootView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     header
-                    repositoryEntry
-                    branchSection
-                    snapshotSection
-                    diffSection
-                    commitDraftSection
+                    repositoryLibrary
+                    if model.hasActiveRepo {
+                        remoteSection
+                        branchSection
+                        snapshotSection
+                        diffSection
+                        stashSection
+                        commitDraftSection
+                    }
                 }
                 .padding(20)
                 .frame(maxWidth: 920, alignment: .leading)
@@ -34,13 +38,22 @@ struct GitMageRootView: View {
         }
         .foregroundStyle(host.theme.tokens.foreground)
         .task { model.bootstrapIfNeeded() }
+        .alert("Initialize a new Git repository?", isPresented: $model.showInitPrompt) {
+            Button("Cancel", role: .cancel) { model.cancelInitPendingRepository() }
+            Button("Initialize") { model.confirmInitPendingRepository() }
+        } message: {
+            Text("\(model.pendingInitPath ?? "") is not a Git repository yet. Initialize it and add it to your library?")
+        }
+        .sheet(isPresented: $model.showClonePrompt) { cloneSheet }
     }
+
+    // MARK: - Header
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Git Mage")
                 .font(.system(size: 32, weight: .semibold, design: .rounded))
-            Text("Inspect local repositories, track changes, and stage the next commit without leaving the host.")
+            Text("Manage your repositories, track changes, and drive the common Git workflows without leaving the host.")
                 .foregroundStyle(host.theme.tokens.foreground.opacity(0.72))
         }
         .padding(20)
@@ -48,51 +61,66 @@ struct GitMageRootView: View {
         .background(host.theme.tokens.surface.opacity(0.76), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
-    private var repositoryEntry: some View {
+    // MARK: - Repository library
+
+    private var repositoryLibrary: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Repository")
-                .font(.headline)
+            HStack {
+                Text("Repositories")
+                    .font(.headline)
+                Spacer()
+                if model.isLoading {
+                    ProgressView().controlSize(.small)
+                }
+            }
 
             HStack(spacing: 10) {
-                Button("Choose Folder") {
-                    model.chooseRepositoryFolder()
+                Button("Add…") { model.addRepositoryFolder() }
+                    .buttonStyle(.borderedProminent)
+                Button("Clone…") { model.startClone() }
+                    .buttonStyle(.bordered)
+                if model.hasActiveRepo {
+                    Button("Refresh") { model.refresh() }
+                        .buttonStyle(.bordered)
+                    Button("Remove") { model.removeActiveRepository() }
+                        .buttonStyle(.bordered)
                 }
-                .buttonStyle(.borderedProminent)
-
-                Button("Refresh") {
-                    model.refresh()
-                }
-                .buttonStyle(.bordered)
-
-                Button("Clear") {
-                    model.clearWorkspace()
-                }
-                .buttonStyle(.bordered)
-
-                Button("Stage All") {
-                    model.stageAllChanges()
-                }
-                .buttonStyle(.bordered)
-
                 Spacer()
             }
 
-            if model.repositoryPath.isEmpty {
-                Text("No repository folder selected.")
+            if model.repos.isEmpty {
+                Text("No repositories yet. Add a local folder or clone one to get started.")
                     .font(.callout)
                     .foregroundStyle(host.theme.tokens.foreground.opacity(0.58))
             } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Selected folder")
-                        .font(.caption)
-                        .textCase(.uppercase)
-                        .foregroundStyle(host.theme.tokens.foreground.opacity(0.58))
-                    Text(model.repositoryPath)
-                        .font(.system(.callout, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(model.repos) { repo in
+                        Button {
+                            model.selectRepository(repo.id)
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: repo.id == model.activeRepoID ? "largecircle.fill.circle" : "circle")
+                                    .foregroundStyle(repo.id == model.activeRepoID
+                                                     ? host.theme.tokens.accentPrimary
+                                                     : host.theme.tokens.foreground.opacity(0.42))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(repo.name)
+                                    Text(repo.path)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(host.theme.tokens.foreground.opacity(0.58))
+                                }
+                                Spacer()
+                            }
+                        }
+                        .buttonStyle(.plain)
                         .padding(10)
-                        .background(host.theme.tokens.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .background(
+                            repo.id == model.activeRepoID
+                            ? host.theme.tokens.accentPrimary.opacity(0.12)
+                            : host.theme.tokens.surface.opacity(0.34),
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        )
+                    }
                 }
             }
 
@@ -100,15 +128,96 @@ struct GitMageRootView: View {
                 Text(errorMessage)
                     .font(.callout)
                     .foregroundStyle(.red)
-            } else {
-                Text("Pick the repository root folder to load its Git state.")
-                    .font(.callout)
-                    .foregroundStyle(host.theme.tokens.foreground.opacity(0.58))
             }
         }
         .padding(18)
         .background(host.theme.tokens.surfaceElevated.opacity(0.82), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
+
+    // MARK: - Remote operations
+
+    private var remoteSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Remote")
+                .font(.headline)
+            HStack(spacing: 10) {
+                Button("Fetch") { model.fetch() }
+                    .buttonStyle(.bordered)
+                Button("Pull") { model.pull() }
+                    .buttonStyle(.bordered)
+                Button("Push") { model.push() }
+                    .buttonStyle(.borderedProminent)
+                Spacer()
+            }
+            Text("Pull is fast-forward only. Push sets origin as upstream for new branches.")
+                .font(.callout)
+                .foregroundStyle(host.theme.tokens.foreground.opacity(0.58))
+        }
+        .padding(18)
+        .background(host.theme.tokens.surfaceElevated.opacity(0.82), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    // MARK: - Branches
+
+    private var branchSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Branches")
+                .font(.headline)
+
+            HStack(spacing: 10) {
+                TextField("New branch name", text: $model.newBranchName)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 260)
+                Button("Create Branch") { model.createBranch() }
+                    .buttonStyle(.bordered)
+                    .disabled(model.newBranchName.trimmingCharacters(in: .whitespaces).isEmpty)
+                Spacer()
+            }
+
+            if model.branches.isEmpty {
+                Text("No local branches loaded yet.")
+                    .foregroundStyle(host.theme.tokens.foreground.opacity(0.64))
+            } else {
+                HStack(spacing: 10) {
+                    Picker("Branch", selection: $model.selectedBranchName) {
+                        ForEach(model.branches) { branch in
+                            Text(branch.name).tag(branch.name)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    Button("Checkout") { model.checkoutSelectedBranch() }
+                        .buttonStyle(.borderedProminent)
+                    Spacer()
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(model.branches) { branch in
+                        Button {
+                            model.selectedBranchName = branch.name
+                        } label: {
+                            HStack(spacing: 10) {
+                                Text(branch.isCurrent ? "●" : "○")
+                                    .foregroundStyle(branch.isCurrent ? host.theme.tokens.accentPrimary : host.theme.tokens.foreground.opacity(0.42))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(branch.name)
+                                    Text(branch.subtitle)
+                                        .font(.caption)
+                                        .foregroundStyle(host.theme.tokens.foreground.opacity(0.58))
+                                }
+                                Spacer()
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .padding(18)
+        .background(host.theme.tokens.surfaceElevated.opacity(0.82), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    // MARK: - Working copy
 
     private var snapshotSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -116,9 +225,8 @@ struct GitMageRootView: View {
                 Text("Working Copy")
                     .font(.headline)
                 Spacer()
-                if model.isLoading {
-                    ProgressView().controlSize(.small)
-                }
+                Button("Stage All") { model.stageAllChanges() }
+                    .buttonStyle(.bordered)
             }
 
             if model.selectedChange != nil {
@@ -129,19 +237,13 @@ struct GitMageRootView: View {
                         .foregroundStyle(host.theme.tokens.foreground.opacity(0.58))
                     Spacer()
                     if model.selectedChange?.canUnstage == true {
-                        Button("Unstage") {
-                            model.unstageSelectedChange()
-                        }
+                        Button("Unstage") { model.unstageSelectedChange() }
+                            .buttonStyle(.bordered)
+                    }
+                    Button("Discard") { model.discardSelectedChange() }
                         .buttonStyle(.bordered)
-                    }
-                    Button("Discard") {
-                        model.discardSelectedChange()
-                    }
-                    .buttonStyle(.bordered)
-                    Button("Stage Selected") {
-                        model.stageSelectedChange()
-                    }
-                    .buttonStyle(.bordered)
+                    Button("Stage Selected") { model.stageSelectedChange() }
+                        .buttonStyle(.bordered)
                 }
             }
 
@@ -154,8 +256,6 @@ struct GitMageRootView: View {
                     }
                     labelRow(title: "Last Commit", value: snapshot.headline)
                     labelRow(title: "Summary", value: snapshot.statusSummary.isEmpty ? "Clean" : snapshot.statusSummary)
-
-                    Divider()
 
                     if snapshot.changes.isEmpty {
                         Text("No file changes detected.")
@@ -202,60 +302,7 @@ struct GitMageRootView: View {
         .background(host.theme.tokens.surfaceElevated.opacity(0.82), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
-    private var branchSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Branches")
-                .font(.headline)
-
-            if model.branches.isEmpty {
-                Text("No local branches loaded yet.")
-                    .foregroundStyle(host.theme.tokens.foreground.opacity(0.64))
-            } else {
-                Picker("Branch", selection: $model.selectedBranchName) {
-                    ForEach(model.branches) { branch in
-                        Text(branch.name).tag(branch.name)
-                    }
-                }
-                .pickerStyle(.menu)
-
-                HStack(spacing: 10) {
-                    Button("Checkout Branch") {
-                        model.checkoutSelectedBranch()
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                    Text("Pick a target branch, then checkout to update the working copy.")
-                        .font(.callout)
-                        .foregroundStyle(host.theme.tokens.foreground.opacity(0.58))
-
-                    Spacer()
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(model.branches) { branch in
-                        Button {
-                            model.selectedBranchName = branch.name
-                        } label: {
-                            HStack(spacing: 10) {
-                                Text(branch.isCurrent ? "●" : "○")
-                                    .foregroundStyle(branch.isCurrent ? host.theme.tokens.accentPrimary : host.theme.tokens.foreground.opacity(0.42))
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(branch.name)
-                                    Text(branch.subtitle)
-                                        .font(.caption)
-                                        .foregroundStyle(host.theme.tokens.foreground.opacity(0.58))
-                                }
-                                Spacer()
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
-        .padding(18)
-        .background(host.theme.tokens.surfaceElevated.opacity(0.82), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
+    // MARK: - Diff
 
     private var diffSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -292,16 +339,58 @@ struct GitMageRootView: View {
         .background(host.theme.tokens.surfaceElevated.opacity(0.82), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
+    // MARK: - Stash
+
+    private var stashSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Stashes")
+                    .font(.headline)
+                Spacer()
+                Button("Stash Changes") { model.stashChanges() }
+                    .buttonStyle(.bordered)
+                Button("Pop Latest") { model.popLatestStash() }
+                    .buttonStyle(.bordered)
+                    .disabled(model.stashes.isEmpty)
+            }
+
+            if model.stashes.isEmpty {
+                Text("No stashes saved.")
+                    .foregroundStyle(host.theme.tokens.foreground.opacity(0.64))
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(model.stashes) { stash in
+                        HStack(spacing: 10) {
+                            Text(stash.id)
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(host.theme.tokens.foreground.opacity(0.58))
+                            Text(stash.message)
+                            Spacer()
+                            Button("Apply") { model.applyStash(stash) }
+                                .buttonStyle(.bordered)
+                            Button("Drop") { model.dropStash(stash) }
+                                .buttonStyle(.bordered)
+                        }
+                        .padding(10)
+                        .background(host.theme.tokens.surface.opacity(0.34), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                }
+            }
+        }
+        .padding(18)
+        .background(host.theme.tokens.surfaceElevated.opacity(0.82), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    // MARK: - Commit
+
     private var commitDraftSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Commit Draft")
                     .font(.headline)
                 Spacer()
-                Button("Commit") {
-                    model.commitChanges()
-                }
-                .buttonStyle(.borderedProminent)
+                Button("Commit") { model.commitChanges() }
+                    .buttonStyle(.borderedProminent)
             }
 
             TextEditor(text: $model.draftCommitMessage)
@@ -314,14 +403,38 @@ struct GitMageRootView: View {
                     .font(.callout)
                     .foregroundStyle(host.theme.tokens.foreground.opacity(0.58))
                 Spacer()
-                Button("Save Draft") {
-                    model.saveWorkspace()
-                }
-                .buttonStyle(.bordered)
+                Button("Save Draft") { model.saveDraft() }
+                    .buttonStyle(.bordered)
             }
         }
         .padding(18)
         .background(host.theme.tokens.surfaceElevated.opacity(0.82), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    // MARK: - Clone sheet
+
+    private var cloneSheet: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Clone a Repository")
+                .font(.title2.weight(.semibold))
+            Text("Enter a Git remote URL. You'll then choose a destination folder to clone into.")
+                .foregroundStyle(host.theme.tokens.foreground.opacity(0.72))
+            TextField("https://github.com/owner/repo.git", text: $model.cloneRemoteURL)
+                .textFieldStyle(.roundedBorder)
+                .frame(minWidth: 380)
+            HStack {
+                Spacer()
+                Button("Cancel") { model.showClonePrompt = false }
+                    .buttonStyle(.bordered)
+                Button("Choose Destination & Clone") { model.performClone() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(model.cloneRemoteURL.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(24)
+        .frame(minWidth: 440)
+        .background(host.theme.tokens.background)
+        .foregroundStyle(host.theme.tokens.foreground)
     }
 
     private func labelRow(title: String, value: String) -> some View {

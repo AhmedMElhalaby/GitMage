@@ -5,7 +5,10 @@ enum GitRepositoryError: Error, LocalizedError, Equatable {
     case pathDoesNotExist(String)
     case notARepository(String)
     case invalidCommitMessage
+    case invalidBranchName
+    case invalidRemoteURL
     case nothingToCommit
+    case detachedHead
     case commandFailed(String)
 
     var errorDescription: String? {
@@ -18,8 +21,14 @@ enum GitRepositoryError: Error, LocalizedError, Equatable {
             return "Not a git repository: \(path)"
         case .invalidCommitMessage:
             return "Enter a non-empty commit message."
+        case .invalidBranchName:
+            return "Enter a non-empty branch name."
+        case .invalidRemoteURL:
+            return "Enter a repository URL to clone."
         case .nothingToCommit:
             return "There are no staged changes to commit."
+        case .detachedHead:
+            return "You are not on a branch (detached HEAD). Check out a branch first."
         case .commandFailed(let message):
             return message
         }
@@ -27,6 +36,14 @@ enum GitRepositoryError: Error, LocalizedError, Equatable {
 }
 
 actor GitRepositoryClient {
+    /// Cache of picked path → resolved repository root, so routine actions don't
+    /// re-run `rev-parse --show-toplevel` on every call.
+    private var rootCache: [String: String] = [:]
+
+    func isRepository(at path: String) -> Bool {
+        (try? validateRepositoryPath(path)) != nil
+    }
+
     func loadSnapshot(at path: String) throws -> GitRepositorySnapshot {
         let repositoryURL = try validateRepositoryPath(path)
         let rootPath = try runGit(["rev-parse", "--show-toplevel"], in: repositoryURL).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -117,6 +134,111 @@ actor GitRepositoryClient {
         _ = try runGit(["commit", "-m", trimmed], in: rootURL)
     }
 
+    func createBranch(_ name: String, in path: String) throws {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw GitRepositoryError.invalidBranchName }
+        let rootURL = try repositoryRootURL(for: path)
+        _ = try runGit(["checkout", "-b", trimmed], in: rootURL)
+    }
+
+    func fetch(in path: String) throws {
+        let rootURL = try repositoryRootURL(for: path)
+        _ = try runGit(["fetch", "--all", "--prune"], in: rootURL)
+    }
+
+    /// Fast-forward-only pull. Surfaces git's error when the branch has diverged.
+    func pull(in path: String) throws {
+        let rootURL = try repositoryRootURL(for: path)
+        _ = try runGit(["pull", "--ff-only"], in: rootURL)
+    }
+
+    /// Pushes the current branch, setting `origin/<branch>` as upstream when none exists.
+    func push(in path: String) throws {
+        let rootURL = try repositoryRootURL(for: path)
+        let branch = try runGit(["rev-parse", "--abbrev-ref", "HEAD"], in: rootURL)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard branch != "HEAD", !branch.isEmpty else { throw GitRepositoryError.detachedHead }
+
+        let hasUpstream = (try? runGit(
+            ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+            in: rootURL
+        )) != nil
+
+        if hasUpstream {
+            _ = try runGit(["push"], in: rootURL)
+        } else {
+            _ = try runGit(["push", "-u", "origin", branch], in: rootURL)
+        }
+    }
+
+    func stashPush(in path: String) throws {
+        let rootURL = try repositoryRootURL(for: path)
+        _ = try runGit(["stash", "push", "--include-untracked"], in: rootURL)
+    }
+
+    func stashPop(in path: String) throws {
+        let rootURL = try repositoryRootURL(for: path)
+        _ = try runGit(["stash", "pop"], in: rootURL)
+    }
+
+    func stashApply(_ entry: GitStashEntry, in path: String) throws {
+        let rootURL = try repositoryRootURL(for: path)
+        _ = try runGit(["stash", "apply", entry.id], in: rootURL)
+    }
+
+    func stashDrop(_ entry: GitStashEntry, in path: String) throws {
+        let rootURL = try repositoryRootURL(for: path)
+        _ = try runGit(["stash", "drop", entry.id], in: rootURL)
+    }
+
+    func loadStashes(in path: String) throws -> [GitStashEntry] {
+        let rootURL = try repositoryRootURL(for: path)
+        let output = try runGit(["stash", "list", "--format=%gd%x09%gs"], in: rootURL)
+        return GitStashParser.parse(output: output)
+    }
+
+    /// Initializes a plain directory as a new git repository.
+    func initRepository(at path: String) throws {
+        let expanded = (path as NSString).expandingTildeInPath
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: expanded, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            throw GitRepositoryError.pathDoesNotExist(path)
+        }
+        _ = try runGit(["init"], in: URL(fileURLWithPath: expanded, isDirectory: true))
+        rootCache[path] = nil
+    }
+
+    /// Clones `remoteURL` into `parentDirectory` and returns the new repository path.
+    func clone(remoteURL: String, into parentDirectory: String) throws -> String {
+        let trimmedURL = remoteURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedURL.isEmpty else { throw GitRepositoryError.invalidRemoteURL }
+
+        let parentExpanded = (parentDirectory as NSString).expandingTildeInPath
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: parentExpanded, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            throw GitRepositoryError.pathDoesNotExist(parentDirectory)
+        }
+
+        let parentURL = URL(fileURLWithPath: parentExpanded, isDirectory: true)
+        let destinationURL = parentURL.appendingPathComponent(
+            GitRepositoryClient.repositoryName(fromRemote: trimmedURL),
+            isDirectory: true
+        )
+        _ = try runGit(["clone", trimmedURL, destinationURL.path], in: parentURL)
+        return destinationURL.path
+    }
+
+    static func repositoryName(fromRemote remote: String) -> String {
+        var trimmed = remote.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasSuffix("/") { trimmed = String(trimmed.dropLast()) }
+        if trimmed.hasSuffix(".git") { trimmed = String(trimmed.dropLast(4)) }
+        let separators = CharacterSet(charactersIn: "/:")
+        let components = trimmed.components(separatedBy: separators).filter { !$0.isEmpty }
+        return components.last ?? "repository"
+    }
+
     func loadDiff(for change: GitChange, in path: String) throws -> GitDiffSnapshot {
         let repositoryURL = try validateRepositoryPath(path)
         let rootPath = try runGit(["rev-parse", "--show-toplevel"], in: repositoryURL).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -177,8 +299,12 @@ actor GitRepositoryClient {
     }
 
     private func repositoryRootURL(for path: String) throws -> URL {
+        if let cached = rootCache[path] {
+            return URL(fileURLWithPath: cached)
+        }
         let repositoryURL = try validateRepositoryPath(path)
         let rootPath = try runGit(["rev-parse", "--show-toplevel"], in: repositoryURL).trimmingCharacters(in: .whitespacesAndNewlines)
+        rootCache[path] = rootPath
         return URL(fileURLWithPath: rootPath)
     }
 
@@ -358,5 +484,20 @@ enum GitBranchParser {
         let upstream = parts[2].isEmpty ? nil : parts[2]
         let tracking = parts[3].isEmpty ? nil : parts[3]
         return GitBranchSummary(name: name, upstream: upstream, isCurrent: isCurrent, tracking: tracking)
+    }
+}
+
+enum GitStashParser {
+    static func parse(output: String) -> [GitStashEntry] {
+        output
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .map(String.init)
+            .enumerated()
+            .compactMap { index, line in
+                let parts = line.split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+                guard let ref = parts.first, !ref.isEmpty else { return nil }
+                let message = parts.count > 1 ? parts[1] : ref
+                return GitStashEntry(id: ref, index: index, message: message)
+            }
     }
 }

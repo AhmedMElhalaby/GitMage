@@ -1,5 +1,7 @@
 import Foundation
 
+/// Legacy single-repo state (schema v1). Retained only so the library store can
+/// migrate an existing install into the multi-repo library.
 struct GitMageWorkspaceState: Codable, Equatable {
     var repositoryPath: String
     var draftCommitMessage: String
@@ -8,6 +10,56 @@ struct GitMageWorkspaceState: Codable, Equatable {
         self.repositoryPath = repositoryPath
         self.draftCommitMessage = draftCommitMessage
     }
+}
+
+/// One repository the user has added to the Git Mage library. Persisted per repo
+/// so switching between repos restores each one's draft and last selection.
+struct GitMageRepoConfig: Codable, Identifiable, Equatable {
+    var id: String
+    var path: String
+    var name: String
+    var draftCommitMessage: String
+    var lastBranch: String
+    var lastSelectedFileID: String?
+
+    init(
+        id: String,
+        path: String,
+        name: String,
+        draftCommitMessage: String = "",
+        lastBranch: String = "",
+        lastSelectedFileID: String? = nil
+    ) {
+        self.id = id
+        self.path = path
+        self.name = name
+        self.draftCommitMessage = draftCommitMessage
+        self.lastBranch = lastBranch
+        self.lastSelectedFileID = lastSelectedFileID
+    }
+}
+
+/// The full Git Mage library (schema v2): every added repo plus the active one.
+struct GitMageLibraryState: Codable, Equatable {
+    var repos: [GitMageRepoConfig]
+    var activeRepoID: String?
+
+    init(repos: [GitMageRepoConfig] = [], activeRepoID: String? = nil) {
+        self.repos = repos
+        self.activeRepoID = activeRepoID
+    }
+
+    var activeRepo: GitMageRepoConfig? {
+        guard let activeRepoID else { return nil }
+        return repos.first { $0.id == activeRepoID }
+    }
+}
+
+/// A single entry from `git stash list`.
+struct GitStashEntry: Identifiable, Equatable {
+    let id: String        // e.g. "stash@{0}"
+    let index: Int
+    let message: String
 }
 
 struct GitRepositorySnapshot: Equatable {

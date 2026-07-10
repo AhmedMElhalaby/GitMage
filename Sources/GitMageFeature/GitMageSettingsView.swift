@@ -8,13 +8,13 @@ struct GitMageSettingsView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Git Mage")
                 .font(.title2.weight(.semibold))
-            Text("Workspace state is stored in the app-scoped document store under a single versioned key.")
+            Text("Your repository library is stored in the app-scoped document store under a single versioned key. Each repo keeps its own draft commit message and last selection.")
                 .foregroundStyle(host.theme.tokens.foreground.opacity(0.72))
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Storage key")
                     .font(.headline)
-                Text("workspace.state.v1")
+                Text("library.state.v2")
                     .font(.system(.body, design: .monospaced))
             }
 
