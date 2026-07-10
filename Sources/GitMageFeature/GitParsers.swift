@@ -204,3 +204,31 @@ enum GitStashParser {
             }
     }
 }
+
+enum GitWorktreeParser {
+    static func parse(porcelain: String) -> [GitWorktree] {
+        var result: [GitWorktree] = []
+        let blocks = porcelain.components(separatedBy: "\n\n")
+        for block in blocks {
+            let lines = block.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+            guard let wtLine = lines.first(where: { $0.hasPrefix("worktree ") }) else { continue }
+            let path = String(wtLine.dropFirst("worktree ".count))
+            var head = ""
+            var branch: String?
+            var isBare = false, isDetached = false, isLocked = false, isPrunable = false
+            for line in lines {
+                if line.hasPrefix("HEAD ") { head = String(line.dropFirst(5)) }
+                else if line.hasPrefix("branch ") {
+                    let ref = String(line.dropFirst("branch ".count))
+                    branch = ref.hasPrefix("refs/heads/") ? String(ref.dropFirst("refs/heads/".count)) : ref
+                }
+                else if line == "bare" { isBare = true }
+                else if line == "detached" { isDetached = true }
+                else if line == "locked" || line.hasPrefix("locked ") { isLocked = true }
+                else if line == "prunable" || line.hasPrefix("prunable ") { isPrunable = true }
+            }
+            result.append(GitWorktree(path: path, head: head, branch: branch, isBare: isBare, isDetached: isDetached, isLocked: isLocked, isPrunable: isPrunable))
+        }
+        return result
+    }
+}
