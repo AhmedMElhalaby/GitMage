@@ -267,6 +267,58 @@ final class GitRepositoryClientTests: XCTestCase {
         XCTAssertEqual(GitRepositoryClient.repositoryName(fromRemote: "/tmp/local/repo/"), "repo")
     }
 
+    func testLoadsCommitLog() async throws {
+        let repoURL = try makeTemporaryRepository()
+        let client = GitRepositoryClient()
+        let fileURL = repoURL.appendingPathComponent("README.md")
+        try "hello\n".write(to: fileURL, atomically: true, encoding: .utf8)
+        try await client.stageAllChanges(in: repoURL.path)
+        try await client.commit(message: "First commit", in: repoURL.path)
+
+        let log = try await client.loadLog(limit: 20, in: repoURL.path)
+        XCTAssertEqual(log.count, 1)
+        XCTAssertEqual(log.first?.summary, "First commit")
+        XCTAssertEqual(log.first?.author, "Git Mage")
+        XCTAssertFalse(log.first?.shortSHA.isEmpty ?? true)
+        XCTAssertFalse(log.first?.relativeDate.isEmpty ?? true)
+    }
+
+    func testLoadsCommitDiff() async throws {
+        let repoURL = try makeTemporaryRepository()
+        let client = GitRepositoryClient()
+        let fileURL = repoURL.appendingPathComponent("README.md")
+        try "hello\n".write(to: fileURL, atomically: true, encoding: .utf8)
+        try await client.stageAllChanges(in: repoURL.path)
+        try await client.commit(message: "First commit", in: repoURL.path)
+
+        let log = try await client.loadLog(limit: 1, in: repoURL.path)
+        let sha = try XCTUnwrap(log.first?.id)
+        let diff = try await client.loadCommitDiff(sha: sha, in: repoURL.path)
+        XCTAssertFalse(diff.isEmpty)
+        XCTAssertTrue(diff.body.contains("README.md"))
+    }
+
+    func testDeletesMergedBranch() async throws {
+        let repoURL = try makeTemporaryRepository()
+        let client = GitRepositoryClient()
+        let fileURL = repoURL.appendingPathComponent("README.md")
+        try "hello\n".write(to: fileURL, atomically: true, encoding: .utf8)
+        try await client.stageAllChanges(in: repoURL.path)
+        try await client.commit(message: "First commit", in: repoURL.path)
+
+        try await client.createBranch("scratch", in: repoURL.path)          // creates + checks out
+        try await client.checkoutBranch("main", in: repoURL.path)           // may be master; see note
+
+        // Fall back if the default branch is "master".
+        let branches = try await client.loadBranches(at: repoURL.path)
+        let base = branches.first(where: { $0.name == "main" }) != nil ? "main" : "master"
+        try await client.checkoutBranch(base, in: repoURL.path)
+        try await client.deleteBranch("scratch", in: repoURL.path)
+
+        let after = try await client.loadBranches(at: repoURL.path)
+        XCTAssertNil(after.first(where: { $0.name == "scratch" }))
+    }
+
     private func seedInitialCommit(in repoURL: URL, client: GitRepositoryClient, commitAll: Bool = false) throws {
         if !commitAll {
             let seed = repoURL.appendingPathComponent(".seed")

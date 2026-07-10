@@ -278,6 +278,38 @@ actor GitRepositoryClient {
         )
     }
 
+    func loadLog(limit: Int, in path: String) throws -> [GitCommitSummary] {
+        let rootURL = try repositoryRootURL(for: path)
+        guard try hasHead(in: rootURL) else { return [] }
+        let output = try runGit([
+            "log",
+            "--max-count=\(max(1, limit))",
+            "--pretty=format:%H%x09%h%x09%s%x09%an%x09%ar"
+        ], in: rootURL)
+        return GitLogParser.parse(output: output)
+    }
+
+    func loadCommitDiff(sha: String, in path: String) throws -> GitDiffSnapshot {
+        let rootURL = try repositoryRootURL(for: path)
+        let output = try runGit(
+            ["show", "--no-color", "--no-ext-diff", "--unified=3", "--format=medium", sha],
+            in: rootURL
+        )
+        let body = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return GitDiffSnapshot(
+            title: sha,
+            body: body.isEmpty ? "No diff available." : body,
+            isEmpty: body.isEmpty
+        )
+    }
+
+    func deleteBranch(_ name: String, in path: String) throws {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw GitRepositoryError.invalidBranchName }
+        let rootURL = try repositoryRootURL(for: path)
+        _ = try runGit(["branch", "-d", trimmed], in: rootURL)   // safe delete; refuses unmerged
+    }
+
     private func validateRepositoryPath(_ path: String) throws -> URL {
         guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw GitRepositoryError.missingPath
@@ -484,6 +516,25 @@ enum GitBranchParser {
         let upstream = parts[2].isEmpty ? nil : parts[2]
         let tracking = parts[3].isEmpty ? nil : parts[3]
         return GitBranchSummary(name: name, upstream: upstream, isCurrent: isCurrent, tracking: tracking)
+    }
+}
+
+enum GitLogParser {
+    static func parse(output: String) -> [GitCommitSummary] {
+        output
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .map(String.init)
+            .compactMap { line in
+                let parts = line.split(separator: "\t", maxSplits: 4, omittingEmptySubsequences: false).map(String.init)
+                guard parts.count == 5 else { return nil }
+                return GitCommitSummary(
+                    id: parts[0],
+                    shortSHA: parts[1],
+                    summary: parts[2],
+                    author: parts[3],
+                    relativeDate: parts[4]
+                )
+            }
     }
 }
 

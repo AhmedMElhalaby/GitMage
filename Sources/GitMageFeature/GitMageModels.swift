@@ -62,6 +62,15 @@ struct GitStashEntry: Identifiable, Equatable {
     let message: String
 }
 
+/// One commit from `git log`, for the History area.
+struct GitCommitSummary: Identifiable, Equatable {
+    let id: String        // full SHA
+    let shortSHA: String
+    let summary: String
+    let author: String
+    let relativeDate: String
+}
+
 struct GitRepositorySnapshot: Equatable {
     let rootPath: String
     let branchName: String
