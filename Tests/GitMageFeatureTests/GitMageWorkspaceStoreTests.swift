@@ -12,17 +12,39 @@ final class GitMageWorkspaceStoreTests: XCTestCase {
 
         XCTAssertEqual(store.load(), state)
     }
-}
 
-private final class MemoryDocumentStore: PluginDocumentStore {
-    private var storage: [String: Data] = [:]
+    func testRoundTripsLibraryState() {
+        let documents = MemoryDocumentStore()
+        let store = GitMageWorkspaceStore(documents: documents)
+        let repo = GitMageRepoConfig(id: "abc", path: "/tmp/repo", name: "repo", draftCommitMessage: "WIP", lastBranch: "main")
+        let library = GitMageLibraryState(repos: [repo], activeRepoID: "abc")
 
-    func data(forKey key: String) -> Data? {
-        storage[key]
+        store.saveLibrary(library)
+
+        XCTAssertEqual(store.loadLibrary(), library)
     }
 
-    func setData(_ data: Data?, forKey key: String) {
-        storage[key] = data
+    func testMigratesLegacyWorkspaceIntoLibrary() {
+        let documents = MemoryDocumentStore()
+        let store = GitMageWorkspaceStore(documents: documents)
+        store.save(GitMageWorkspaceState(repositoryPath: "/tmp/legacy-repo", draftCommitMessage: "carry over"))
+
+        let library = store.loadLibrary()
+
+        XCTAssertEqual(library.repos.count, 1)
+        let repo = try? XCTUnwrap(library.repos.first)
+        XCTAssertEqual(repo?.path, "/tmp/legacy-repo")
+        XCTAssertEqual(repo?.name, "legacy-repo")
+        XCTAssertEqual(repo?.draftCommitMessage, "carry over")
+        XCTAssertEqual(library.activeRepoID, repo?.id)
+
+        // Migration is persisted, so a second load returns the same library.
+        XCTAssertEqual(store.loadLibrary(), library)
+    }
+
+    func testReturnsEmptyLibraryWithoutLegacyState() {
+        let store = GitMageWorkspaceStore(documents: MemoryDocumentStore())
+        XCTAssertEqual(store.loadLibrary(), GitMageLibraryState())
     }
 }
 

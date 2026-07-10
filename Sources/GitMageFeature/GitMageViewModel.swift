@@ -5,16 +5,34 @@ import AinkradAppKit
 
 @MainActor
 final class GitMageViewModel: ObservableObject {
-    @Published var repositoryPath: String
-    @Published var draftCommitMessage: String
+    // Library
+    @Published var repos: [GitMageRepoConfig] = []
+    @Published var activeRepoID: String?
+
+    // Active-repo editors / transient state
+    @Published var draftCommitMessage: String = ""
+    @Published var newBranchName: String = ""
     @Published var snapshot: GitRepositorySnapshot?
     @Published var branches: [GitBranchSummary] = []
+    @Published var stashes: [GitStashEntry] = []
     @Published var selectedBranchName: String = ""
     @Published var selectedChangeID: String?
     @Published var diffSnapshot: GitDiffSnapshot?
     @Published var isLoading = false
     @Published var isLoadingDiff = false
     @Published var errorMessage: String?
+
+    // Area / History state
+    @Published var selectedArea: NavArea = .changes
+    @Published var commits: [GitCommitSummary] = []
+    @Published var selectedCommitID: String?
+    @Published var commitDiff: GitDiffSnapshot?
+
+    // Prompts driven from the view
+    @Published var pendingInitPath: String?
+    @Published var showInitPrompt = false
+    @Published var showClonePrompt = false
+    @Published var cloneRemoteURL = ""
 
     private let workspaceStore: GitMageWorkspaceStore
     private let client = GitRepositoryClient()
@@ -24,17 +42,184 @@ final class GitMageViewModel: ObservableObject {
     init(host: HostServices) {
         self.workspaceStore = GitMageWorkspaceStore(documents: host.documents)
         self.log = host.log
-        let state = workspaceStore.load()
-        self.repositoryPath = state.repositoryPath
-        self.draftCommitMessage = state.draftCommitMessage
+        let library = workspaceStore.loadLibrary()
+        self.repos = library.repos
+        self.activeRepoID = library.activeRepoID ?? library.repos.first?.id
+        loadActiveRepoIntoEditors()
+    }
+
+    // MARK: - Active repo
+
+    var activeRepo: GitMageRepoConfig? {
+        guard let activeRepoID else { return nil }
+        return repos.first { $0.id == activeRepoID }
+    }
+
+    var repositoryPath: String { activeRepo?.path ?? "" }
+    var hasActiveRepo: Bool { !repositoryPath.isEmpty }
+
+    private func loadActiveRepoIntoEditors() {
+        let repo = activeRepo
+        draftCommitMessage = repo?.draftCommitMessage ?? ""
+        selectedBranchName = repo?.lastBranch ?? ""
+        selectedChangeID = repo?.lastSelectedFileID
+    }
+
+    private func resetTransientState() {
+        snapshot = nil
+        branches = []
+        stashes = []
+        diffSnapshot = nil
+        errorMessage = nil
+    }
+
+    /// Folds the live editor state back into the active repo config.
+    private func syncActiveRepoState() {
+        guard let activeRepoID,
+              let index = repos.firstIndex(where: { $0.id == activeRepoID }) else { return }
+        repos[index].draftCommitMessage = draftCommitMessage
+        repos[index].lastBranch = selectedBranchName
+        repos[index].lastSelectedFileID = selectedChangeID
+    }
+
+    private func persistLibrary() {
+        syncActiveRepoState()
+        workspaceStore.saveLibrary(GitMageLibraryState(repos: repos, activeRepoID: activeRepoID))
+    }
+
+    func saveDraft() {
+        persistLibrary()
     }
 
     func bootstrapIfNeeded() {
         guard !didBootstrap else { return }
         didBootstrap = true
-        guard !repositoryPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard hasActiveRepo else { return }
         refresh()
     }
+
+    // MARK: - Library management
+
+    func addRepositoryFolder() {
+        guard let url = pickFolder(
+            title: "Add a Git Repository",
+            prompt: "Add Repository",
+            message: "Select a repository root folder."
+        ) else { return }
+        let path = url.path
+
+        Task { @MainActor in
+            if await client.isRepository(at: path) {
+                registerRepository(path: path)
+            } else {
+                pendingInitPath = path
+                showInitPrompt = true
+            }
+        }
+    }
+
+    func confirmInitPendingRepository() {
+        guard let path = pendingInitPath else { return }
+        pendingInitPath = nil
+        Task { @MainActor in
+            do {
+                try await client.initRepository(at: path)
+                log.info("Initialized new repository at \(path)")
+                registerRepository(path: path)
+            } catch {
+                report(error, context: "initialize repository at \(path)")
+            }
+        }
+    }
+
+    func cancelInitPendingRepository() {
+        pendingInitPath = nil
+    }
+
+    func startClone() {
+        cloneRemoteURL = ""
+        showClonePrompt = true
+    }
+
+    func performClone() {
+        let remote = cloneRemoteURL
+        guard !remote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            errorMessage = GitRepositoryError.invalidRemoteURL.errorDescription
+            return
+        }
+        guard let parent = pickFolder(
+            title: "Choose a Destination Folder",
+            prompt: "Clone Here",
+            message: "Select the folder to clone the repository into."
+        ) else { return }
+
+        isLoading = true
+        errorMessage = nil
+        showClonePrompt = false
+
+        Task { @MainActor in
+            do {
+                let destination = try await client.clone(remoteURL: remote, into: parent.path)
+                cloneRemoteURL = ""
+                log.info("Cloned \(remote) into \(destination)")
+                registerRepository(path: destination)
+            } catch {
+                isLoading = false
+                report(error, context: "clone \(remote)")
+            }
+        }
+    }
+
+    /// Adds (or re-selects) a repo, makes it active, and loads it.
+    private func registerRepository(path: String) {
+        syncActiveRepoState()
+
+        if let existing = repos.first(where: { $0.path == path }) {
+            activeRepoID = existing.id
+        } else {
+            let repo = GitMageRepoConfig(
+                id: UUID().uuidString,
+                path: path,
+                name: (path as NSString).lastPathComponent
+            )
+            repos.append(repo)
+            activeRepoID = repo.id
+        }
+
+        resetTransientState()
+        loadActiveRepoIntoEditors()
+        persistLibrary()
+        refresh()
+    }
+
+    func selectRepository(_ id: String) {
+        guard id != activeRepoID else { return }
+        syncActiveRepoState()
+        persistLibrary()
+
+        activeRepoID = id
+        resetTransientState()
+        loadActiveRepoIntoEditors()
+        refresh()
+    }
+
+    func removeActiveRepository() {
+        guard let activeRepoID else { return }
+        removeRepository(activeRepoID)
+    }
+
+    func removeRepository(_ id: String) {
+        repos.removeAll { $0.id == id }
+        if activeRepoID == id {
+            activeRepoID = repos.first?.id
+            resetTransientState()
+            loadActiveRepoIntoEditors()
+        }
+        persistLibrary()
+        if hasActiveRepo { refresh() }
+    }
+
+    // MARK: - Snapshot / refresh
 
     func refresh() {
         let path = repositoryPath
@@ -50,12 +235,18 @@ final class GitMageViewModel: ObservableObject {
             do {
                 let newSnapshot = try await client.loadSnapshot(at: path)
                 let newBranches = (try? await client.loadBranches(at: path)) ?? []
+                let newStashes = (try? await client.loadStashes(in: path)) ?? []
                 snapshot = newSnapshot
                 branches = newBranches
+                stashes = newStashes
+                commits = []
+                selectedCommitID = nil
+                commitDiff = nil
+                if selectedArea == .history { loadCommits() }
                 if selectedBranchName.isEmpty || !newBranches.contains(where: { $0.name == selectedBranchName }) {
                     selectedBranchName = newSnapshot.branchName
                 }
-                workspaceStore.save(GitMageWorkspaceState(repositoryPath: path, draftCommitMessage: draftCommitMessage))
+                persistLibrary()
                 log.info("Loaded repository snapshot for \(path)")
                 isLoading = false
                 if let selectedChangeID,
@@ -69,51 +260,104 @@ final class GitMageViewModel: ObservableObject {
                     diffSnapshot = nil
                 }
             } catch {
-                errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
                 snapshot = nil
                 branches = []
+                stashes = []
                 diffSnapshot = nil
-                log.error("Failed to load repository snapshot: \(error.localizedDescription)")
                 isLoading = false
+                report(error, context: "load repository snapshot")
             }
         }
     }
 
-    func chooseRepositoryFolder() {
-        let panel = NSOpenPanel()
-        panel.title = "Choose a Git Repository"
-        panel.prompt = "Choose Folder"
-        panel.message = "Select the repository root folder."
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.canCreateDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.canResolveUbiquitousConflicts = false
-
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        repositoryPath = url.path
-        saveWorkspace()
-        refresh()
-    }
+    // MARK: - Branches
 
     func checkoutSelectedBranch() {
         let branch = selectedBranchName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !branch.isEmpty else { return }
-        isLoading = true
-        errorMessage = nil
+        run(context: "checkout branch \(branch)") { [self] in
+            try await client.checkoutBranch(branch, in: repositoryPath)
+        }
+    }
 
+    func createBranch() {
+        let name = newBranchName
+        run(context: "create branch \(name)") { [self] in
+            try await client.createBranch(name, in: repositoryPath)
+            newBranchName = ""
+        }
+    }
+
+    func deleteBranch(_ name: String) {
+        run(context: "delete branch \(name)") { [self] in try await client.deleteBranch(name, in: repositoryPath) }
+    }
+
+    // MARK: - Areas / History
+
+    func selectArea(_ area: NavArea) {
+        selectedArea = area
+        if area == .history && commits.isEmpty && hasActiveRepo { loadCommits() }
+    }
+
+    func loadCommits() {
+        let path = repositoryPath
+        guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         Task { @MainActor in
-            do {
-                try await client.checkoutBranch(branch, in: repositoryPath)
-                log.info("Checked out branch \(branch)")
-                refresh()
-            } catch {
-                errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-                log.error("Failed to checkout branch \(branch): \(error.localizedDescription)")
-                isLoading = false
+            let loaded = (try? await client.loadLog(limit: 100, in: path)) ?? []
+            commits = loaded
+            if selectedCommitID == nil, let first = loaded.first {
+                selectCommit(first)
             }
         }
     }
+
+    func selectCommit(_ commit: GitCommitSummary) {
+        selectedCommitID = commit.id
+        let path = repositoryPath
+        Task { @MainActor in
+            do {
+                var diff = try await client.loadCommitDiff(sha: commit.id, in: path)
+                diff = GitDiffSnapshot(title: "\(commit.shortSHA) · \(commit.summary)", body: diff.body, isEmpty: diff.isEmpty)
+                commitDiff = diff
+            } catch {
+                commitDiff = GitDiffSnapshot(title: commit.shortSHA, body: error.localizedDescription, isEmpty: true)
+            }
+        }
+    }
+
+    // MARK: - Remote operations
+
+    func fetch() {
+        run(context: "fetch") { [self] in try await client.fetch(in: repositoryPath) }
+    }
+
+    func pull() {
+        run(context: "pull") { [self] in try await client.pull(in: repositoryPath) }
+    }
+
+    func push() {
+        run(context: "push") { [self] in try await client.push(in: repositoryPath) }
+    }
+
+    // MARK: - Stash
+
+    func stashChanges() {
+        run(context: "stash changes") { [self] in try await client.stashPush(in: repositoryPath) }
+    }
+
+    func popLatestStash() {
+        run(context: "pop stash") { [self] in try await client.stashPop(in: repositoryPath) }
+    }
+
+    func applyStash(_ entry: GitStashEntry) {
+        run(context: "apply \(entry.id)") { [self] in try await client.stashApply(entry, in: repositoryPath) }
+    }
+
+    func dropStash(_ entry: GitStashEntry) {
+        run(context: "drop \(entry.id)") { [self] in try await client.stashDrop(entry, in: repositoryPath) }
+    }
+
+    // MARK: - Diff
 
     func selectChange(_ change: GitChange) {
         selectedChangeID = change.id
@@ -140,121 +384,34 @@ final class GitMageViewModel: ObservableObject {
         }
     }
 
-    func stageAllChanges() {
-        let path = repositoryPath
-        guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        isLoading = true
-        errorMessage = nil
+    // MARK: - Staging
 
-        Task { @MainActor in
-            do {
-                try await client.stageAllChanges(in: path)
-                log.info("Staged all changes in \(path)")
-                refresh()
-            } catch {
-                errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-                log.error("Failed to stage all changes: \(error.localizedDescription)")
-                isLoading = false
-            }
-        }
+    func stageAllChanges() {
+        run(context: "stage all changes") { [self] in try await client.stageAllChanges(in: repositoryPath) }
     }
 
     func stageSelectedChange() {
         guard let change = selectedChange else { return }
-        stage(change: change)
-    }
-
-    func stage(change: GitChange) {
-        let path = repositoryPath
-        guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        isLoading = true
-        errorMessage = nil
-
-        Task { @MainActor in
-            do {
-                try await client.stage(change: change, in: path)
-                log.info("Staged \(change.filePath) in \(path)")
-                refresh()
-            } catch {
-                errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-                log.error("Failed to stage \(change.filePath): \(error.localizedDescription)")
-                isLoading = false
-            }
-        }
+        run(context: "stage \(change.filePath)") { [self] in try await client.stage(change: change, in: repositoryPath) }
     }
 
     func unstageSelectedChange() {
         guard let change = selectedChange else { return }
-        unstage(change: change)
-    }
-
-    func unstage(change: GitChange) {
-        let path = repositoryPath
-        guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        isLoading = true
-        errorMessage = nil
-
-        Task { @MainActor in
-            do {
-                try await client.unstage(change: change, in: path)
-                log.info("Unstaged \(change.filePath) in \(path)")
-                refresh()
-            } catch {
-                errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-                log.error("Failed to unstage \(change.filePath): \(error.localizedDescription)")
-                isLoading = false
-            }
-        }
+        run(context: "unstage \(change.filePath)") { [self] in try await client.unstage(change: change, in: repositoryPath) }
     }
 
     func discardSelectedChange() {
         guard let change = selectedChange else { return }
-        discard(change: change)
-    }
-
-    func discard(change: GitChange) {
-        let path = repositoryPath
-        guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        isLoading = true
-        errorMessage = nil
-
-        Task { @MainActor in
-            do {
-                try await client.discard(change: change, in: path)
-                log.info("Discarded \(change.filePath) in \(path)")
-                refresh()
-            } catch {
-                errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-                log.error("Failed to discard \(change.filePath): \(error.localizedDescription)")
-                isLoading = false
-            }
-        }
+        run(context: "discard \(change.filePath)") { [self] in try await client.discard(change: change, in: repositoryPath) }
     }
 
     func commitChanges() {
-        let path = repositoryPath
         let message = draftCommitMessage
-        guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        isLoading = true
-        errorMessage = nil
-
-        Task { @MainActor in
-            do {
-                try await client.commit(message: message, in: path)
-                draftCommitMessage = ""
-                saveWorkspace()
-                log.info("Created commit in \(path)")
-                refresh()
-            } catch {
-                errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-                log.error("Failed to commit in \(path): \(error.localizedDescription)")
-                isLoading = false
-            }
+        run(context: "commit") { [self] in
+            try await client.commit(message: message, in: repositoryPath)
+            draftCommitMessage = ""
+            persistLibrary()
         }
-    }
-
-    func saveWorkspace() {
-        workspaceStore.save(GitMageWorkspaceState(repositoryPath: repositoryPath, draftCommitMessage: draftCommitMessage))
     }
 
     var selectedChange: GitChange? {
@@ -262,15 +419,41 @@ final class GitMageViewModel: ObservableObject {
         return snapshot?.changes.first { $0.id == selectedChangeID }
     }
 
-    func clearWorkspace() {
-        repositoryPath = ""
-        draftCommitMessage = ""
-        snapshot = nil
-        branches = []
-        selectedBranchName = ""
-        selectedChangeID = nil
-        diffSnapshot = nil
+    // MARK: - Helpers
+
+    /// Runs a mutating git action, then refreshes on success or reports on failure.
+    private func run(context: String, _ action: @escaping () async throws -> Void) {
+        guard hasActiveRepo else { return }
+        isLoading = true
         errorMessage = nil
-        saveWorkspace()
+        Task { @MainActor in
+            do {
+                try await action()
+                log.info("Completed \(context) in \(repositoryPath)")
+                refresh()
+            } catch {
+                isLoading = false
+                report(error, context: context)
+            }
+        }
+    }
+
+    private func report(_ error: Error, context: String) {
+        errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        log.error("Failed to \(context): \(error.localizedDescription)")
+    }
+
+    private func pickFolder(title: String, prompt: String, message: String) -> URL? {
+        let panel = NSOpenPanel()
+        panel.title = title
+        panel.prompt = prompt
+        panel.message = message
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canResolveUbiquitousConflicts = false
+        guard panel.runModal() == .OK else { return nil }
+        return panel.url
     }
 }
