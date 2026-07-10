@@ -58,6 +58,11 @@ final class GitMageViewModel: ObservableObject {
     var repositoryPath: String { activeRepo?.path ?? "" }
     var hasActiveRepo: Bool { !repositoryPath.isEmpty }
 
+    func currentRemote() async -> RepoRef? {
+        guard hasActiveRepo else { return nil }
+        return try? await client.remoteInfo(in: repositoryPath)
+    }
+
     private func loadActiveRepoIntoEditors() {
         let repo = activeRepo
         draftCommitMessage = repo?.draftCommitMessage ?? ""
