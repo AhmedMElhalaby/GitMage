@@ -197,6 +197,12 @@ final class GitMageViewModel: ObservableObject {
         refresh()
     }
 
+    /// Registers (or re-selects) the repo at `path` — public hook for surfaces like Worktrees
+    /// that need to open a directory as its own library entry.
+    func openRepositoryPath(_ path: String) {
+        registerRepository(path: path)
+    }
+
     func selectRepository(_ id: String) {
         guard id != activeRepoID else { return }
         syncActiveRepoState()
