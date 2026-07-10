@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleExecutable</key>
+  <string>GitMagePlugin</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.ainkrad.plugin.gitmage</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>GitMage</string>
+  <key>CFBundlePackageType</key>
+  <string>BNDL</string>
+  <key>CFBundleVersion</key>
+  <string>1</string>
+  <key>AinkradAppID</key>
+  <string>gitmage</string>
+  <key>AinkradDisplayName</key>
+  <string>Git Mage</string>
+  <key>AinkradIconSymbol</key>
+  <string>wand.and.stars</string>
+  <key>AinkradAPIVersion</key>
+  <integer>1</integer>
+  <key>NSPrincipalClass</key>
+  <string>GitMageEntryPoint</string>
+</dict>
+</plist>
+

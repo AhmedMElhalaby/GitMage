@@ -1,0 +1,72 @@
+name: GitMage
+
+options:
+  bundleIdPrefix: com.ainkrad
+  deploymentTarget: { macOS: "14.0" }
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGNING_REQUIRED: NO
+    CODE_SIGNING_ALLOWED: NO
+    EAGER_LINKING: NO
+
+packages:
+  AinkradAppKit:
+    path: ../AinkradAppKit
+
+targets:
+  GitMageFeature:
+    type: library.static
+    platform: macOS
+    sources:
+      - path: Sources/GitMageFeature
+    dependencies:
+      - package: AinkradAppKit
+        embed: false
+
+  GitMagePlugin:
+    type: bundle
+    platform: macOS
+    sources:
+      - path: Sources/GitMagePlugin
+    dependencies:
+      - target: GitMageFeature
+      - package: AinkradAppKit
+        embed: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ainkrad.plugin.gitmage
+        PRODUCT_NAME: GitMagePlugin
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Sources/GitMagePlugin/Info.plist
+        MACH_O_TYPE: mh_bundle
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks"
+        OTHER_LDFLAGS: ["-lGitMageFeature"]
+
+  GitMageFeatureTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/GitMageFeatureTests
+    dependencies:
+      - target: GitMageFeature
+      - package: AinkradAppKit
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  GitMagePlugin:
+    build:
+      targets:
+        GitMagePlugin: all
+        GitMageFeatureTests: [test]
+    test:
+      config: Debug
+      targets:
+        - GitMageFeatureTests
+
