@@ -42,9 +42,36 @@ struct GitRepositorySnapshot: Equatable {
     }
 }
 
+struct GitBranchSummary: Identifiable, Equatable {
+    let name: String
+    let upstream: String?
+    let isCurrent: Bool
+    let tracking: String?
+
+    var id: String { name }
+
+    var subtitle: String {
+        if let tracking, !tracking.isEmpty {
+            return tracking
+        }
+        if let upstream, !upstream.isEmpty {
+            return upstream
+        }
+        return isCurrent ? "current branch" : "local branch"
+    }
+}
+
+struct GitDiffSnapshot: Equatable {
+    let title: String
+    let body: String
+    let isEmpty: Bool
+}
+
 struct GitChange: Identifiable, Equatable {
     let id: String
     let path: String
+    let filePath: String
+    let sourcePath: String?
     let statusCode: String
     let kind: GitChangeKind
 

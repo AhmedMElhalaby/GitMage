@@ -4,6 +4,8 @@ enum GitRepositoryError: Error, LocalizedError, Equatable {
     case missingPath
     case pathDoesNotExist(String)
     case notARepository(String)
+    case invalidCommitMessage
+    case nothingToCommit
     case commandFailed(String)
 
     var errorDescription: String? {
@@ -14,6 +16,10 @@ enum GitRepositoryError: Error, LocalizedError, Equatable {
             return "Path does not exist: \(path)"
         case .notARepository(let path):
             return "Not a git repository: \(path)"
+        case .invalidCommitMessage:
+            return "Enter a non-empty commit message."
+        case .nothingToCommit:
+            return "There are no staged changes to commit."
         case .commandFailed(let message):
             return message
         }
@@ -30,6 +36,79 @@ actor GitRepositoryClient {
             statusOutput: statusOutput,
             repositoryRoot: rootPath,
             lastCommitSummary: lastCommitSummary?.isEmpty == true ? nil : lastCommitSummary
+        )
+    }
+
+    func loadBranches(at path: String) throws -> [GitBranchSummary] {
+        let repositoryURL = try validateRepositoryPath(path)
+        let rootPath = try runGit(["rev-parse", "--show-toplevel"], in: repositoryURL).trimmingCharacters(in: .whitespacesAndNewlines)
+        let output = try runGit([
+            "for-each-ref",
+            "--format=%(HEAD)\t%(refname:short)\t%(upstream:short)\t%(upstream:trackshort)",
+            "refs/heads"
+        ], in: URL(fileURLWithPath: rootPath))
+        return GitBranchParser.parse(output: output)
+    }
+
+    func checkoutBranch(_ branchName: String, in path: String) throws {
+        let repositoryURL = try validateRepositoryPath(path)
+        let rootPath = try runGit(["rev-parse", "--show-toplevel"], in: repositoryURL).trimmingCharacters(in: .whitespacesAndNewlines)
+        _ = try runGit(["checkout", branchName], in: URL(fileURLWithPath: rootPath))
+    }
+
+    func stageAllChanges(in path: String) throws {
+        let rootURL = try repositoryRootURL(for: path)
+        _ = try runGit(["add", "-A"], in: rootURL)
+    }
+
+    func stage(change: GitChange, in path: String) throws {
+        let rootURL = try repositoryRootURL(for: path)
+        if change.kind == .renamed, let sourcePath = change.sourcePath {
+            _ = try runGit(["add", sourcePath, change.filePath], in: rootURL)
+        } else {
+            _ = try runGit(["add", change.filePath], in: rootURL)
+        }
+    }
+
+    func commit(message: String, in path: String) throws {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw GitRepositoryError.invalidCommitMessage }
+
+        let rootURL = try repositoryRootURL(for: path)
+        let staged = try runGit(["diff", "--cached", "--name-only"], in: rootURL)
+        guard !staged.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw GitRepositoryError.nothingToCommit
+        }
+        _ = try runGit(["commit", "-m", trimmed], in: rootURL)
+    }
+
+    func loadDiff(for change: GitChange, in path: String) throws -> GitDiffSnapshot {
+        let repositoryURL = try validateRepositoryPath(path)
+        let rootPath = try runGit(["rev-parse", "--show-toplevel"], in: repositoryURL).trimmingCharacters(in: .whitespacesAndNewlines)
+        let rootURL = URL(fileURLWithPath: rootPath)
+        let title = change.kind == .renamed ? "\(change.sourcePath ?? change.path) → \(change.filePath)" : change.filePath
+
+        let arguments: [String]
+        switch change.kind {
+        case .staged, .renamed, .deleted:
+            arguments = ["diff", "--cached", "--no-ext-diff", "--unified=3", "--", change.filePath]
+        case .untracked:
+            arguments = ["diff", "--no-index", "--", "/dev/null", change.filePath]
+        default:
+            arguments = ["diff", "--no-ext-diff", "--unified=3", "--", change.filePath]
+        }
+
+        let output = try runGit(
+            arguments,
+            in: rootURL,
+            acceptedExitCodes: change.kind == .untracked ? [0, 1] : [0]
+        )
+
+        let body = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return GitDiffSnapshot(
+            title: title,
+            body: body.isEmpty ? "No diff available." : body,
+            isEmpty: body.isEmpty
         )
     }
 
@@ -53,7 +132,13 @@ actor GitRepositoryClient {
         }
     }
 
-    private func runGit(_ arguments: [String], in repositoryURL: URL) throws -> String {
+    private func repositoryRootURL(for path: String) throws -> URL {
+        let repositoryURL = try validateRepositoryPath(path)
+        let rootPath = try runGit(["rev-parse", "--show-toplevel"], in: repositoryURL).trimmingCharacters(in: .whitespacesAndNewlines)
+        return URL(fileURLWithPath: rootPath)
+    }
+
+    private func runGit(_ arguments: [String], in repositoryURL: URL, acceptedExitCodes: Set<Int32> = [0]) throws -> String {
         let process = Process()
         let stdout = Pipe()
         let stderr = Pipe()
@@ -75,7 +160,7 @@ actor GitRepositoryClient {
         let output = String(decoding: outData, as: UTF8.self)
         let errorOutput = String(decoding: errData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard process.terminationStatus == 0 else {
+        guard acceptedExitCodes.contains(process.terminationStatus) else {
             throw GitRepositoryError.commandFailed(errorOutput.isEmpty ? "git \(arguments.joined(separator: " ")) failed" : errorOutput)
         }
 
@@ -147,23 +232,43 @@ enum GitStatusParser {
         let statusCode = String(line.prefix(2))
         let remainder = String(line.dropFirst(3))
         if statusCode == "!!" {
-            return GitChange(id: "\(statusCode):\(remainder)", path: remainder, statusCode: statusCode, kind: .ignored)
+            return GitChange(
+                id: "\(statusCode):\(remainder)",
+                path: remainder,
+                filePath: remainder,
+                sourcePath: nil,
+                statusCode: statusCode,
+                kind: .ignored
+            )
         }
 
         let displayPath: String
+        let filePath: String
+        let sourcePath: String?
         let kind: GitChangeKind
 
         if let renameRange = remainder.range(of: " -> ") {
             let oldPath = String(remainder[..<renameRange.lowerBound])
             let newPath = String(remainder[renameRange.upperBound...])
             displayPath = "\(oldPath) → \(newPath)"
+            filePath = newPath
+            sourcePath = oldPath
             kind = .renamed
         } else {
             displayPath = remainder
+            filePath = remainder
+            sourcePath = nil
             kind = kindForStatus(statusCode)
         }
 
-        return GitChange(id: "\(statusCode):\(displayPath)", path: displayPath, statusCode: statusCode, kind: kind)
+        return GitChange(
+            id: "\(statusCode):\(displayPath)",
+            path: displayPath,
+            filePath: filePath,
+            sourcePath: sourcePath,
+            statusCode: statusCode,
+            kind: kind
+        )
     }
 
     private static func kindForStatus(_ statusCode: String) -> GitChangeKind {
@@ -177,5 +282,28 @@ enum GitStatusParser {
         if index0 != " " && index1 == " " { return .staged }
         if index0 == " " && index1 != " " { return .modified }
         return index0 != " " ? .staged : .modified
+    }
+}
+
+enum GitBranchParser {
+    static func parse(output: String) -> [GitBranchSummary] {
+        output
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .map(String.init)
+            .compactMap(parseLine)
+            .sorted { lhs, rhs in
+                if lhs.isCurrent != rhs.isCurrent { return lhs.isCurrent && !rhs.isCurrent }
+                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+    }
+
+    private static func parseLine(_ line: String) -> GitBranchSummary? {
+        let parts = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count >= 4 else { return nil }
+        let isCurrent = parts[0] == "*"
+        let name = parts[1]
+        let upstream = parts[2].isEmpty ? nil : parts[2]
+        let tracking = parts[3].isEmpty ? nil : parts[3]
+        return GitBranchSummary(name: name, upstream: upstream, isCurrent: isCurrent, tracking: tracking)
     }
 }

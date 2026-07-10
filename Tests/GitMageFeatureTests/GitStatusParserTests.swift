@@ -25,6 +25,8 @@ final class GitStatusParserTests: XCTestCase {
         XCTAssertEqual(snapshot.changes[0].kind, .modified)
         XCTAssertEqual(snapshot.changes[1].kind, .untracked)
         XCTAssertEqual(snapshot.changes[2].kind, .renamed)
+        XCTAssertEqual(snapshot.changes[2].filePath, "New.swift")
+        XCTAssertEqual(snapshot.changes[2].sourcePath, "Old.swift")
     }
 
     func testParsesNoCommitsHeader() {
@@ -38,5 +40,19 @@ final class GitStatusParserTests: XCTestCase {
         XCTAssertNil(snapshot.upstream)
         XCTAssertEqual(snapshot.changes.first?.kind, .untracked)
     }
-}
 
+    func testParsesBranches() {
+        let output = """
+        *\tmain\torigin/main\t[ahead 1]
+         \tfeature/login\t\t
+         \trelease/1.0\torigin/release/1.0\t[behind 2]
+        """
+
+        let branches = GitBranchParser.parse(output: output)
+
+        XCTAssertEqual(branches.first?.name, "main")
+        XCTAssertEqual(branches.first?.isCurrent, true)
+        XCTAssertEqual(branches[1].name, "feature/login")
+        XCTAssertEqual(branches[2].tracking, "[behind 2]")
+    }
+}
