@@ -128,6 +128,16 @@ struct GitMageRootView: View {
                         .textCase(.uppercase)
                         .foregroundStyle(host.theme.tokens.foreground.opacity(0.58))
                     Spacer()
+                    if model.selectedChange?.canUnstage == true {
+                        Button("Unstage") {
+                            model.unstageSelectedChange()
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    Button("Discard") {
+                        model.discardSelectedChange()
+                    }
+                    .buttonStyle(.bordered)
                     Button("Stage Selected") {
                         model.stageSelectedChange()
                     }
@@ -300,7 +310,7 @@ struct GitMageRootView: View {
                 .background(host.theme.tokens.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             HStack {
-                Text("The commit flow will wire in after the read-only inspection slice lands.")
+                Text("Write a commit message for the staged changes, then commit or save the draft for later.")
                     .font(.callout)
                     .foregroundStyle(host.theme.tokens.foreground.opacity(0.58))
                 Spacer()

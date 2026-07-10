@@ -183,6 +183,54 @@ final class GitMageViewModel: ObservableObject {
         }
     }
 
+    func unstageSelectedChange() {
+        guard let change = selectedChange else { return }
+        unstage(change: change)
+    }
+
+    func unstage(change: GitChange) {
+        let path = repositoryPath
+        guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        isLoading = true
+        errorMessage = nil
+
+        Task { @MainActor in
+            do {
+                try await client.unstage(change: change, in: path)
+                log.info("Unstaged \(change.filePath) in \(path)")
+                refresh()
+            } catch {
+                errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                log.error("Failed to unstage \(change.filePath): \(error.localizedDescription)")
+                isLoading = false
+            }
+        }
+    }
+
+    func discardSelectedChange() {
+        guard let change = selectedChange else { return }
+        discard(change: change)
+    }
+
+    func discard(change: GitChange) {
+        let path = repositoryPath
+        guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        isLoading = true
+        errorMessage = nil
+
+        Task { @MainActor in
+            do {
+                try await client.discard(change: change, in: path)
+                log.info("Discarded \(change.filePath) in \(path)")
+                refresh()
+            } catch {
+                errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                log.error("Failed to discard \(change.filePath): \(error.localizedDescription)")
+                isLoading = false
+            }
+        }
+    }
+
     func commitChanges() {
         let path = repositoryPath
         let message = draftCommitMessage

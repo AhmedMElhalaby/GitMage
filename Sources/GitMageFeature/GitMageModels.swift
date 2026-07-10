@@ -31,7 +31,7 @@ struct GitRepositorySnapshot: Equatable {
     var statusSummary: String {
         guard !changes.isEmpty else { return "Clean" }
         let changeCount = changes.count
-        let stagedCount = changes.filter(\.isStaged).count
+        let stagedCount = changes.filter(\.isIndexStaged).count
         let untrackedCount = changes.filter(\.isUntracked).count
         let pieces = [
             "\(changeCount) changed",
@@ -75,8 +75,15 @@ struct GitChange: Identifiable, Equatable {
     let statusCode: String
     let kind: GitChangeKind
 
-    var isStaged: Bool { kind.isStaged }
+    var isStaged: Bool { isIndexStaged }
     var isUntracked: Bool { kind == .untracked }
+    var isIndexStaged: Bool {
+        guard !isUntracked, kind != .ignored else { return false }
+        return statusCode.first != " "
+    }
+    var canUnstage: Bool {
+        isIndexStaged && kind != .conflicted
+    }
 }
 
 enum GitChangeKind: Equatable {

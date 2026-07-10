@@ -70,6 +70,41 @@ actor GitRepositoryClient {
         }
     }
 
+    func unstage(change: GitChange, in path: String) throws {
+        let rootURL = try repositoryRootURL(for: path)
+        guard change.canUnstage else { return }
+        if try !hasHead(in: rootURL) {
+            if change.kind == .renamed, let sourcePath = change.sourcePath {
+                _ = try runGit(["rm", "--cached", "--", sourcePath, change.filePath], in: rootURL)
+            } else {
+                _ = try runGit(["rm", "--cached", "--", change.filePath], in: rootURL)
+            }
+            return
+        }
+
+        if change.kind == .renamed, let sourcePath = change.sourcePath {
+            _ = try runGit(["restore", "--staged", "--", sourcePath, change.filePath], in: rootURL)
+        } else {
+            _ = try runGit(["restore", "--staged", "--", change.filePath], in: rootURL)
+        }
+    }
+
+    func discard(change: GitChange, in path: String) throws {
+        let rootURL = try repositoryRootURL(for: path)
+        switch change.kind {
+        case .untracked:
+            _ = try runGit(["clean", "-f", "--", change.filePath], in: rootURL)
+        case .renamed:
+            if let sourcePath = change.sourcePath {
+                _ = try runGit(["restore", "--source=HEAD", "--worktree", "--staged", "--", sourcePath, change.filePath], in: rootURL)
+            } else {
+                _ = try runGit(["restore", "--source=HEAD", "--worktree", "--staged", "--", change.filePath], in: rootURL)
+            }
+        default:
+            _ = try runGit(["restore", "--source=HEAD", "--worktree", "--staged", "--", change.filePath], in: rootURL)
+        }
+    }
+
     func commit(message: String, in path: String) throws {
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw GitRepositoryError.invalidCommitMessage }
@@ -90,12 +125,21 @@ actor GitRepositoryClient {
 
         let arguments: [String]
         switch change.kind {
-        case .staged, .renamed, .deleted:
-            arguments = ["diff", "--cached", "--no-ext-diff", "--unified=3", "--", change.filePath]
         case .untracked:
             arguments = ["diff", "--no-index", "--", "/dev/null", change.filePath]
+        case .renamed:
+            let pathspecs = change.sourcePath.map { [$0, change.filePath] } ?? [change.filePath]
+            arguments = change.isIndexStaged
+                ? ["diff", "--cached", "--no-ext-diff", "--unified=3", "--"] + pathspecs
+                : ["diff", "--no-ext-diff", "--unified=3", "--"] + pathspecs
+        case .deleted:
+            arguments = change.isIndexStaged
+                ? ["diff", "--cached", "--no-ext-diff", "--unified=3", "--", change.filePath]
+                : ["diff", "--no-ext-diff", "--unified=3", "--", change.filePath]
         default:
-            arguments = ["diff", "--no-ext-diff", "--unified=3", "--", change.filePath]
+            arguments = change.isIndexStaged
+                ? ["diff", "--cached", "--no-ext-diff", "--unified=3", "--", change.filePath]
+                : ["diff", "--no-ext-diff", "--unified=3", "--", change.filePath]
         }
 
         let output = try runGit(
@@ -136,6 +180,15 @@ actor GitRepositoryClient {
         let repositoryURL = try validateRepositoryPath(path)
         let rootPath = try runGit(["rev-parse", "--show-toplevel"], in: repositoryURL).trimmingCharacters(in: .whitespacesAndNewlines)
         return URL(fileURLWithPath: rootPath)
+    }
+
+    private func hasHead(in repositoryURL: URL) throws -> Bool {
+        do {
+            _ = try runGit(["rev-parse", "--verify", "HEAD"], in: repositoryURL)
+            return true
+        } catch {
+            return false
+        }
     }
 
     private func runGit(_ arguments: [String], in repositoryURL: URL, acceptedExitCodes: Set<Int32> = [0]) throws -> String {
