@@ -39,6 +39,41 @@ final class GitHubProvider: GitForgeProvider {
         try await send("PUT", "/repos/\(repo.owner)/\(repo.name)/pulls/\(number)/merge", json: ["merge_method": method.rawValue])
     }
 
+    // MARK: - Issues
+    func listIssues(_ repo: RepoRef, state: IssueState) async throws -> [IssueSummary] {
+        let items = try await get("/repos/\(repo.owner)/\(repo.name)/issues?state=\(state.rawValue)&per_page=50", as: [GHIssue].self)
+        return items.filter { !$0.isPullRequest }.map { $0.toSummary() }
+    }
+    func issue(_ repo: RepoRef, number: Int) async throws -> IssueDetail {
+        try await get("/repos/\(repo.owner)/\(repo.name)/issues/\(number)", as: GHIssue.self).toDetail()
+    }
+    func issueComments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment] {
+        try await get("/repos/\(repo.owner)/\(repo.name)/issues/\(number)/comments?per_page=100", as: [GHComment].self).map { $0.toModel() }
+    }
+    func repoLabels(_ repo: RepoRef) async throws -> [IssueLabel] {
+        try await get("/repos/\(repo.owner)/\(repo.name)/labels?per_page=100", as: [GHLabel].self).map { $0.toModel() }
+    }
+    func assignableUsers(_ repo: RepoRef) async throws -> [ForgeUser] {
+        try await get("/repos/\(repo.owner)/\(repo.name)/assignees?per_page=100", as: [GHUser].self).map { $0.toModel() }
+    }
+    func createIssue(_ repo: RepoRef, title: String, body: String, labels: [String], assignees: [String]) async throws -> Int {
+        let created: GHIssue = try await sendReturning("POST", "/repos/\(repo.owner)/\(repo.name)/issues",
+            json: ["title": title, "body": body, "labels": labels, "assignees": assignees])
+        return created.number
+    }
+    func addIssueComment(_ repo: RepoRef, number: Int, body: String) async throws {
+        try await send("POST", "/repos/\(repo.owner)/\(repo.name)/issues/\(number)/comments", json: ["body": body])
+    }
+    func setIssueState(_ repo: RepoRef, number: Int, state: IssueState) async throws {
+        try await send("PATCH", "/repos/\(repo.owner)/\(repo.name)/issues/\(number)", json: ["state": state.rawValue])
+    }
+    func setLabels(_ repo: RepoRef, number: Int, labels: [String]) async throws {
+        try await send("PATCH", "/repos/\(repo.owner)/\(repo.name)/issues/\(number)", json: ["labels": labels])
+    }
+    func setAssignees(_ repo: RepoRef, number: Int, assignees: [String]) async throws {
+        try await send("PATCH", "/repos/\(repo.owner)/\(repo.name)/issues/\(number)", json: ["assignees": assignees])
+    }
+
     // MARK: - Transport
     private func makeRequest(_ method: String, _ path: String) -> URLRequest {
         var req = URLRequest(url: URL(string: path, relativeTo: base)!)
@@ -62,6 +97,14 @@ final class GitHubProvider: GitForgeProvider {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let (data, resp) = try await run(req)
         try Self.check(resp, data)
+    }
+    private func sendReturning<T: Decodable>(_ method: String, _ path: String, json: [String: Any]) async throws -> T {
+        var req = makeRequest(method, path)
+        req.httpBody = try JSONSerialization.data(withJSONObject: json)
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let (data, resp) = try await run(req)
+        try Self.check(resp, data)
+        do { return try decoder().decode(T.self, from: data) } catch { throw ForgeError.decoding }
     }
     private func run(_ req: URLRequest) async throws -> (Data, URLResponse) {
         do { return try await session.data(for: req) }

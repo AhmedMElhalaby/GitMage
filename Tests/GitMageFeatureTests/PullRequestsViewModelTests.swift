@@ -162,4 +162,15 @@ private final class StubForgeProvider: GitForgeProvider {
     func merge(_ repo: RepoRef, number: Int, method: MergeMethod) async throws {
         mergeCalls.append(method)
     }
+
+    func listIssues(_ repo: RepoRef, state: IssueState) async throws -> [IssueSummary] { [] }
+    func issue(_ repo: RepoRef, number: Int) async throws -> IssueDetail { throw ForgeError.notFound }
+    func issueComments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment] { [] }
+    func repoLabels(_ repo: RepoRef) async throws -> [IssueLabel] { [] }
+    func assignableUsers(_ repo: RepoRef) async throws -> [ForgeUser] { [] }
+    func createIssue(_ repo: RepoRef, title: String, body: String, labels: [String], assignees: [String]) async throws -> Int { 0 }
+    func addIssueComment(_ repo: RepoRef, number: Int, body: String) async throws {}
+    func setIssueState(_ repo: RepoRef, number: Int, state: IssueState) async throws {}
+    func setLabels(_ repo: RepoRef, number: Int, labels: [String]) async throws {}
+    func setAssignees(_ repo: RepoRef, number: Int, assignees: [String]) async throws {}
 }
