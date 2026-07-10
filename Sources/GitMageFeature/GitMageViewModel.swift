@@ -22,6 +22,12 @@ final class GitMageViewModel: ObservableObject {
     @Published var isLoadingDiff = false
     @Published var errorMessage: String?
 
+    // Area / History state
+    @Published var selectedArea: NavArea = .changes
+    @Published var commits: [GitCommitSummary] = []
+    @Published var selectedCommitID: String?
+    @Published var commitDiff: GitDiffSnapshot?
+
     // Prompts driven from the view
     @Published var pendingInitPath: String?
     @Published var showInitPrompt = false
@@ -233,6 +239,10 @@ final class GitMageViewModel: ObservableObject {
                 snapshot = newSnapshot
                 branches = newBranches
                 stashes = newStashes
+                commits = []
+                selectedCommitID = nil
+                commitDiff = nil
+                if selectedArea == .history { loadCommits() }
                 if selectedBranchName.isEmpty || !newBranches.contains(where: { $0.name == selectedBranchName }) {
                     selectedBranchName = newSnapshot.branchName
                 }
@@ -275,6 +285,43 @@ final class GitMageViewModel: ObservableObject {
         run(context: "create branch \(name)") { [self] in
             try await client.createBranch(name, in: repositoryPath)
             newBranchName = ""
+        }
+    }
+
+    func deleteBranch(_ name: String) {
+        run(context: "delete branch \(name)") { [self] in try await client.deleteBranch(name, in: repositoryPath) }
+    }
+
+    // MARK: - Areas / History
+
+    func selectArea(_ area: NavArea) {
+        selectedArea = area
+        if area == .history && commits.isEmpty && hasActiveRepo { loadCommits() }
+    }
+
+    func loadCommits() {
+        let path = repositoryPath
+        guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        Task { @MainActor in
+            let loaded = (try? await client.loadLog(limit: 100, in: path)) ?? []
+            commits = loaded
+            if selectedCommitID == nil, let first = loaded.first {
+                selectCommit(first)
+            }
+        }
+    }
+
+    func selectCommit(_ commit: GitCommitSummary) {
+        selectedCommitID = commit.id
+        let path = repositoryPath
+        Task { @MainActor in
+            do {
+                var diff = try await client.loadCommitDiff(sha: commit.id, in: path)
+                diff = GitDiffSnapshot(title: "\(commit.shortSHA) · \(commit.summary)", body: diff.body, isEmpty: diff.isEmpty)
+                commitDiff = diff
+            } catch {
+                commitDiff = GitDiffSnapshot(title: commit.shortSHA, body: error.localizedDescription, isEmpty: true)
+            }
         }
     }
 

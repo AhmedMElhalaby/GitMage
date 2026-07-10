@@ -7,7 +7,7 @@ public struct GitMageApp: AinkradApp {
     public static let icon = "wand.and.stars"
 
     public static func makeRootView(host: HostServices) -> AnyView {
-        AnyView(GitMageRootView(host: host))
+        AnyView(GitMageShell(host: host, settingsStore: GitMageRuntime.settingsStore(for: host)))
     }
 
     public static func makeSettingsView(host: HostServices) -> AnyView {
