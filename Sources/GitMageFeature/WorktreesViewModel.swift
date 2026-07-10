@@ -41,6 +41,9 @@ final class WorktreesViewModel: ObservableObject {
         self.onOpen = onOpen
     }
 
+    /// Branch names available for the "existing branch" add mode.
+    var branchNames: [String] { branches.map(\.name) }
+
     func isCurrent(_ wt: GitWorktree) -> Bool {
         wt.path == currentRoot
     }

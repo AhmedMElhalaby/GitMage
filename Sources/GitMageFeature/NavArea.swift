@@ -35,11 +35,11 @@ enum NavArea: String, CaseIterable, Identifiable {
 
     var isReserved: Bool {
         switch self {
-        case .changes, .history, .branches, .stashes, .pullRequests: return false
+        case .changes, .history, .branches, .stashes, .pullRequests, .worktrees: return false
         default: return true
         }
     }
 
-    static var built: [NavArea] { [.changes, .history, .branches, .stashes, .pullRequests] }
-    static var reserved: [NavArea] { [.issues, .worktrees, .advanced] }
+    static var built: [NavArea] { [.changes, .history, .branches, .stashes, .pullRequests, .worktrees] }
+    static var reserved: [NavArea] { [.issues, .advanced] }
 }
