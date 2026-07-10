@@ -7,6 +7,7 @@ struct GitMageShell: View {
     @StateObject private var model: GitMageViewModel
     @State private var prModel: PullRequestsViewModel?
     @State private var prHasGitHubRemote = false
+    @State private var worktreesModel: WorktreesViewModel?
 
     init(host: HostServices, settingsStore: GitMageSettingsStore) {
         self.host = host
@@ -41,6 +42,9 @@ struct GitMageShell: View {
         .task { model.bootstrapIfNeeded() }
         .task(id: PRTaskKey(area: model.selectedArea, repoID: model.activeRepoID)) {
             await buildPRModelIfNeeded()
+        }
+        .task(id: WorktreesTaskKey(isActive: model.selectedArea == .worktrees, repoID: model.activeRepoID)) {
+            await buildWorktreesModelIfNeeded()
         }
         .alert("Initialize a new Git repository?", isPresented: $model.showInitPrompt) {
             Button("Cancel", role: .cancel) { model.cancelInitPendingRepository() }
@@ -139,6 +143,12 @@ struct GitMageShell: View {
             } else {
                 ComingSoonView(area: model.selectedArea, tokens: tokens)
             }
+        case .worktrees:
+            if let worktreesModel {
+                WorktreesContextPane(model: worktreesModel, tokens: tokens)
+            } else {
+                selectRepoPlaceholder
+            }
         default: EmptyView()
         }
     }
@@ -154,12 +164,35 @@ struct GitMageShell: View {
             } else {
                 ComingSoonView(area: model.selectedArea, tokens: tokens)
             }
+        case .worktrees:
+            if let worktreesModel {
+                WorktreeDetailView(model: worktreesModel, tokens: tokens)
+            } else {
+                selectRepoPlaceholder
+            }
         default: ComingSoonView(area: model.selectedArea, tokens: tokens)
         }
     }
 
+    private var selectRepoPlaceholder: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "rectangle.split.3x1")
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(tokens.accentPrimary.opacity(0.5))
+            Text("Select a repository.")
+                .font(AinkradFont.display(12))
+                .foregroundStyle(tokens.foreground.opacity(0.6))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     private struct PRTaskKey: Equatable {
         let area: NavArea
+        let repoID: String?
+    }
+
+    private struct WorktreesTaskKey: Equatable {
+        let isActive: Bool
         let repoID: String?
     }
 
@@ -176,6 +209,19 @@ struct GitMageShell: View {
         if remote != nil && token != nil {
             await newModel.load()
         }
+    }
+
+    private func buildWorktreesModelIfNeeded() async {
+        guard model.selectedArea == .worktrees, model.hasActiveRepo else { return }
+        let newModel = WorktreesViewModel(
+            client: GitRepositoryClient(),
+            repositoryPath: model.repositoryPath,
+            currentRoot: model.snapshot?.rootPath ?? "",
+            branches: model.branches,
+            onOpen: { path in model.openRepositoryPath(path) }
+        )
+        worktreesModel = newModel
+        await newModel.load()
     }
 
     private var emptyLibraryState: some View {
