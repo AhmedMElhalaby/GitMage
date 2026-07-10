@@ -10,6 +10,7 @@ struct GitMageShell: View {
     @State private var issuesModel: IssuesViewModel?
     @State private var issuesHasGitHubRemote = false
     @State private var worktreesModel: WorktreesViewModel?
+    @State private var advancedModel: AdvancedViewModel?
 
     init(host: HostServices, settingsStore: GitMageSettingsStore) {
         self.host = host
@@ -50,6 +51,9 @@ struct GitMageShell: View {
         }
         .task(id: WorktreesTaskKey(isActive: model.selectedArea == .worktrees, repoID: model.activeRepoID)) {
             await buildWorktreesModelIfNeeded()
+        }
+        .task(id: AdvancedTaskKey(isActive: model.selectedArea == .advanced, repoID: model.activeRepoID)) {
+            await buildAdvancedModelIfNeeded()
         }
         .alert("Initialize a new Git repository?", isPresented: $model.showInitPrompt) {
             Button("Cancel", role: .cancel) { model.cancelInitPendingRepository() }
@@ -114,7 +118,9 @@ struct GitMageShell: View {
         VStack(spacing: 10) {
             ForEach(NavArea.built) { area in navItem(area) }
             Spacer()
-            ForEach(NavArea.reserved) { area in navItem(area) }
+            if !NavArea.reserved.isEmpty {
+                ForEach(NavArea.reserved) { area in navItem(area) }
+            }
         }
         .padding(.vertical, 14)
         .frame(width: 56)
@@ -160,6 +166,12 @@ struct GitMageShell: View {
             } else {
                 selectRepoPlaceholder
             }
+        case .advanced:
+            if let advancedModel {
+                AdvancedContextPane(model: advancedModel, tokens: tokens)
+            } else {
+                selectRepoPlaceholder
+            }
         default: EmptyView()
         }
     }
@@ -184,6 +196,12 @@ struct GitMageShell: View {
         case .worktrees:
             if let worktreesModel {
                 WorktreeDetailView(model: worktreesModel, tokens: tokens)
+            } else {
+                selectRepoPlaceholder
+            }
+        case .advanced:
+            if let advancedModel {
+                AdvancedDetailView(model: advancedModel, tokens: tokens)
             } else {
                 selectRepoPlaceholder
             }
@@ -214,6 +232,11 @@ struct GitMageShell: View {
     }
 
     private struct WorktreesTaskKey: Equatable {
+        let isActive: Bool
+        let repoID: String?
+    }
+
+    private struct AdvancedTaskKey: Equatable {
         let isActive: Bool
         let repoID: String?
     }
@@ -258,6 +281,18 @@ struct GitMageShell: View {
             onOpen: { path in model.openRepositoryPath(path) }
         )
         worktreesModel = newModel
+        await newModel.load()
+    }
+
+    private func buildAdvancedModelIfNeeded() async {
+        guard model.selectedArea == .advanced, model.hasActiveRepo else { return }
+        let newModel = AdvancedViewModel(
+            client: GitRepositoryClient(),
+            repositoryPath: model.repositoryPath,
+            branches: model.branches,
+            onChanged: { Task { @MainActor in model.refresh() } }
+        )
+        advancedModel = newModel
         await newModel.load()
     }
 

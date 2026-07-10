@@ -1,6 +1,6 @@
 import Foundation
 
-enum ResetMode: String {
+enum ResetMode: String, CaseIterable {
     case soft
     case mixed
     case hard
