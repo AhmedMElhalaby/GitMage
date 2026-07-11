@@ -21,6 +21,12 @@ struct GitMageShell: View {
     }
 
     private var tokens: HostThemeTokens { host.theme.tokens }
+    /// Changes whenever typography settings change — drives a content rebuild
+    /// so font edits apply live without needing another interaction.
+    private var typographyToken: String {
+        let s = settingsStore.settings
+        return "\(s.textScale)|\(s.displayFontName)|\(s.monoFontName)"
+    }
     private var appearance: GitMageRenderAppearance {
         GitMageAppearanceResolver.resolve(settings: settingsStore.settings, tokens: tokens)
     }
@@ -43,6 +49,10 @@ struct GitMageShell: View {
                     }
                 }
             }
+            // Rebuild the content when typography settings change so every
+            // AinkradFont call re-evaluates immediately (fonts are read
+            // statically, so there's otherwise no dependency to invalidate on).
+            .id(typographyToken)
             .overlayPreferenceValue(TooltipKey.self) { item in
                 if let item {
                     GeometryReader { proxy in
@@ -350,8 +360,8 @@ struct GitMageShell: View {
             Text("No repository").font(AinkradFont.display(18, weight: .semibold))
             Text("Add a local folder or clone one to begin.").font(AinkradFont.display(12)).foregroundStyle(tokens.foreground.opacity(0.5))
             HStack {
-                Button("Add…") { model.addRepositoryFolder() }
-                Button("Clone…") { model.startClone() }
+                Button("Add…") { model.addRepositoryFolder() }.font(AinkradFont.display(12))
+                Button("Clone…") { model.startClone() }.font(AinkradFont.display(12))
             }
         }
     }
@@ -362,11 +372,12 @@ struct GitMageShell: View {
             Text("Enter a Git remote URL. You'll then choose a destination folder.")
                 .font(AinkradFont.display(12)).foregroundStyle(tokens.foreground.opacity(0.7))
             TextField("https://github.com/owner/repo.git", text: $model.cloneRemoteURL)
-                .textFieldStyle(.roundedBorder).frame(minWidth: 380)
+                .textFieldStyle(.roundedBorder).font(AinkradFont.mono(12)).frame(minWidth: 380)
             HStack {
                 Spacer()
-                Button("Cancel") { model.showClonePrompt = false }
+                Button("Cancel") { model.showClonePrompt = false }.font(AinkradFont.display(12))
                 Button("Choose Destination & Clone") { model.performClone() }
+                    .font(AinkradFont.display(12, weight: .medium))
                     .buttonStyle(.borderedProminent)
                     .disabled(model.cloneRemoteURL.trimmingCharacters(in: .whitespaces).isEmpty)
             }

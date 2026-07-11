@@ -133,7 +133,7 @@ struct ChangeRow: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(fileName)
-                    .font(AinkradFont.display(12, weight: isSelected ? .medium : .regular))
+                    .font(AinkradFont.display(12))
                     .foregroundStyle(tokens.foreground.opacity(isSelected ? 1 : 0.9))
                     .lineLimit(1)
                 if !directory.isEmpty {
@@ -166,13 +166,12 @@ struct ChangeRow: View {
         )
         .overlay(alignment: .leading) {
             // Glowing selection spine, matching the nav rail language.
-            if isSelected {
-                Capsule()
-                    .fill(accent)
-                    .frame(width: 3, height: 18)
-                    .shadow(color: accent.opacity(0.8), radius: 4)
-                    .padding(.leading, 1)
-            }
+            Capsule()
+                .fill(accent)
+                .frame(width: 3, height: 18)
+                .shadow(color: accent.opacity(0.8), radius: 4)
+                .padding(.leading, 1)
+                .opacity(isSelected ? 1 : 0)
         }
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)

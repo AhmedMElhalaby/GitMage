@@ -45,6 +45,7 @@ struct WorktreeDetailView: View {
             infoRow(label: "Branch", value: wt.branch ?? "detached")
             infoRow(label: "Status", value: statusText(for: wt))
             Button("Open in Git Mage") { model.open(wt) }
+                .font(AinkradFont.display(12, weight: .medium))
                 .buttonStyle(.borderedProminent)
             Spacer()
         }
@@ -89,13 +90,14 @@ private struct AddWorktreeSheet: View {
             if let errorMessage = model.errorMessage {
                 Text(errorMessage)
                     .font(AinkradFont.display(11))
-                    .foregroundStyle(.red.opacity(0.85))
+                    .foregroundStyle(tokens.accentTertiary.opacity(0.9))
             }
 
             HStack {
                 Spacer()
-                Button("Cancel") { model.showAdd = false }
+                Button("Cancel") { model.showAdd = false }.font(AinkradFont.display(12))
                 Button("Add") { Task { await model.add(destination: destination) } }
+                    .font(AinkradFont.display(12, weight: .medium))
                     .buttonStyle(.borderedProminent)
                     .disabled(!canAdd)
             }
@@ -127,7 +129,7 @@ private struct AddWorktreeSheet: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer()
-                Button("Choose…") { chooseDestination() }
+                Button("Choose…") { chooseDestination() }.font(AinkradFont.display(12))
             }
         }
     }
@@ -146,7 +148,7 @@ private struct AddWorktreeSheet: View {
         switch model.addMode {
         case .newBranch:
             TextField("Branch name", text: $model.addBranchName)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.roundedBorder).font(AinkradFont.display(12))
         case .existingBranch:
             Menu {
                 ForEach(model.branchNames, id: \.self) { name in
@@ -158,7 +160,7 @@ private struct AddWorktreeSheet: View {
             }
         case .detached:
             TextField("Ref (commit, tag, branch)", text: $model.addRef)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.roundedBorder).font(AinkradFont.display(12))
         }
     }
 

@@ -108,6 +108,12 @@ struct GHLabel: Codable {
 
 struct GHPullRequestMarker: Codable {}   // presence indicates the "issue" is actually a PR
 
+/// Envelope returned by `GET /search/issues` (total_count → totalCount).
+struct GHSearchEnvelope: Codable {
+    let totalCount: Int
+    let items: [GHIssue]
+}
+
 struct GHIssue: Codable {
     let number: Int
     let title: String
@@ -117,6 +123,7 @@ struct GHIssue: Codable {
     let labels: [GHLabel]
     let assignees: [GHUser]
     let comments: Int
+    let draft: Bool?                        // present on PR items from the search API
     let pullRequest: GHPullRequestMarker?   // JSON "pull_request" via convertFromSnakeCase
 
     var isPullRequest: Bool { pullRequest != nil }
@@ -124,6 +131,13 @@ struct GHIssue: Codable {
     func toSummary() -> IssueSummary {
         IssueSummary(id: number, number: number, title: title, author: user.login,
                      state: state, labelNames: labels.map { $0.name }, commentCount: comments)
+    }
+
+    /// Maps a search-API PR item to a list summary. Head/base branches are not
+    /// returned by search — the detail fetch on select fills them in.
+    func toPRSummary() -> PullRequestSummary {
+        PullRequestSummary(id: number, number: number, title: title, author: user.login,
+                           state: state, isDraft: draft ?? false, headBranch: "", baseBranch: "")
     }
 
     func toDetail() -> IssueDetail {

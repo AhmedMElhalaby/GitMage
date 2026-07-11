@@ -31,6 +31,13 @@ struct ForgeUser: Equatable {
     let login: String
 }
 
+/// One page of a forge search: the items plus the total match count, so the
+/// UI can show "loaded / total" and know whether more pages remain.
+struct ForgePage<Item> {
+    let items: [Item]
+    let totalCount: Int
+}
+
 struct PullRequestSummary: Identifiable, Equatable {
     let id: Int
     let number: Int

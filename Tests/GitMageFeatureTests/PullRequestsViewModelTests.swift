@@ -132,6 +132,11 @@ private final class StubForgeProvider: GitForgeProvider {
         return summaries
     }
 
+    func searchPullRequests(_ repo: RepoRef, state: PRState, query: String, labels: [String], page: Int) async throws -> ForgePage<PullRequestSummary> {
+        if let listPullRequestsError { throw listPullRequestsError }
+        return ForgePage(items: summaries, totalCount: summaries.count)
+    }
+
     func pullRequest(_ repo: RepoRef, number: Int) async throws -> PullRequestDetail {
         pullRequestCallCount += 1
         guard let detail else { throw ForgeError.notFound }
@@ -164,6 +169,9 @@ private final class StubForgeProvider: GitForgeProvider {
     }
 
     func listIssues(_ repo: RepoRef, state: IssueState) async throws -> [IssueSummary] { [] }
+    func searchIssues(_ repo: RepoRef, state: IssueState, query: String, labels: [String], page: Int) async throws -> ForgePage<IssueSummary> {
+        ForgePage(items: [], totalCount: 0)
+    }
     func issue(_ repo: RepoRef, number: Int) async throws -> IssueDetail { throw ForgeError.notFound }
     func issueComments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment] { [] }
     func repoLabels(_ repo: RepoRef) async throws -> [IssueLabel] { [] }

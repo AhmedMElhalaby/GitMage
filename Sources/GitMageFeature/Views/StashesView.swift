@@ -68,8 +68,8 @@ private struct StashRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(stash.message)
-                    .font(AinkradFont.display(12, weight: isSelected ? .medium : .regular))
-                    .foregroundStyle(tokens.foreground.opacity(isSelected ? 1 : 0.9))
+                    .font(AinkradFont.display(12))
+                    .foregroundStyle(tokens.foreground.opacity(isSelected ? 1 : 0.88))
                     .lineLimit(2)
                 Text(stash.id)
                     .font(AinkradFont.mono(9))
@@ -91,12 +91,11 @@ private struct StashRow: View {
                       : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
         )
         .overlay(alignment: .leading) {
-            if isSelected {
-                Capsule().fill(tokens.accentPrimary)
-                    .frame(width: 3, height: 20)
-                    .shadow(color: tokens.accentPrimary.opacity(0.8), radius: 4)
-                    .padding(.leading, 1)
-            }
+            Capsule().fill(tokens.accentPrimary)
+                .frame(width: 3, height: 20)
+                .shadow(color: tokens.accentPrimary.opacity(0.8), radius: 4)
+                .padding(.leading, 1)
+                .opacity(isSelected ? 1 : 0)
         }
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)

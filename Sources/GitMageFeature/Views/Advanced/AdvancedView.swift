@@ -20,17 +20,9 @@ struct AdvancedContextPane: View {
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
-            Text("Advanced")
-                .font(AinkradFont.display(13, weight: .semibold))
-                .foregroundStyle(tokens.foreground.opacity(0.85))
-            Spacer()
-            if model.isLoading {
-                ProgressView().controlSize(.small)
-            }
+        PaneHeader(title: "ADVANCED", count: AdvancedViewModel.AdvancedOp.allCases.count, tokens: tokens) {
+            if model.isLoading { GMSpinner(tint: tokens.accentSecondary, size: 16) }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
     }
 
     private var inProgressBanner: some View {
@@ -45,48 +37,41 @@ struct AdvancedContextPane: View {
                 .font(AinkradFont.display(11))
                 .foregroundStyle(tokens.foreground.opacity(0.6))
             HStack(spacing: 8) {
-                Button("Continue") { Task { await model.continueOperation() } }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 10).padding(.vertical, 5)
-                    .background(tokens.accentPrimary.opacity(0.18), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                GMButton("Continue", kind: .primary, tokens: tokens) { Task { await model.continueOperation() } }
                     .disabled(model.isLoading)
-
-                Button("Abort") { Task { await model.abortOperation() } }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(tokens.accentTertiary)
-                    .padding(.horizontal, 10).padding(.vertical, 5)
-                    .background(tokens.accentTertiary.opacity(0.15), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                GMButton("Abort", kind: .destructive, tokens: tokens) { Task { await model.abortOperation() } }
                     .disabled(model.isLoading)
             }
         }
         .padding(12)
-        .background(tokens.surfaceElevated.opacity(0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(tokens.accentTertiary.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(tokens.accentTertiary.opacity(0.35))
+        )
         .padding(.horizontal, 12)
         .padding(.bottom, 10)
     }
 
     private func errorBanner(_ text: String) -> some View {
-        Text(text)
-            .font(AinkradFont.display(11))
-            .foregroundStyle(tokens.accentTertiary)
+        ErrorBanner(message: text, tokens: tokens)
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
     }
 
     private var opList: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 ForEach(AdvancedViewModel.AdvancedOp.allCases) { op in
-                    opRow(op)
+                    AdvancedOpRow(op: op, tokens: tokens, isSelected: model.selectedOp == op) {
+                        model.selectedOp = op
+                    }
                 }
             }
-            .padding(.horizontal, 12)
-        }
-    }
-
-    private func opRow(_ op: AdvancedViewModel.AdvancedOp) -> some View {
-        AdvancedOpRow(op: op, tokens: tokens, isSelected: model.selectedOp == op) {
-            model.selectedOp = op
+            .padding(.horizontal, 12).padding(.bottom, 12)
         }
     }
 }
@@ -98,21 +83,42 @@ private struct AdvancedOpRow: View {
     let action: () -> Void
     @State private var hovering = false
 
-    var body: some View {
-        Button(action: action) {
-            Text(op.title)
-                .font(AinkradFont.display(12, weight: .medium))
-                .foregroundStyle(tokens.foreground.opacity(0.85))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 8).padding(.vertical, 8)
-                .background(
-                    isSelected ? tokens.accentPrimary.opacity(0.13) : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear),
-                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                )
-                .contentShape(Rectangle())
+    private var icon: String {
+        switch op {
+        case .rebase: return "arrow.triangle.merge"
+        case .cherryPick: return "arrow.right.circle"
+        case .revert: return "arrow.uturn.backward"
+        case .reset: return "arrow.counterclockwise"
+        case .tags: return "tag"
         }
-        .buttonStyle(.plain)
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 12))
+                .foregroundStyle(isSelected ? tokens.accentPrimary : tokens.foreground.opacity(0.55))
+                .frame(width: 16)
+            Text(op.title)
+                .font(AinkradFont.display(12))
+                .foregroundStyle(tokens.foreground.opacity(isSelected ? 1 : 0.88))
+            Spacer()
+        }
+        .padding(.horizontal, 9).padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(isSelected ? tokens.accentPrimary.opacity(0.13)
+                      : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
+        )
+        .overlay(alignment: .leading) {
+            Capsule().fill(tokens.accentPrimary).frame(width: 3, height: 18)
+                .shadow(color: tokens.accentPrimary.opacity(0.8), radius: 4).padding(.leading, 1)
+                .opacity(isSelected ? 1 : 0)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: action)
         .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.14), value: hovering)
+        .animation(.easeOut(duration: 0.12), value: hovering)
+        .animation(.easeOut(duration: 0.14), value: isSelected)
     }
 }

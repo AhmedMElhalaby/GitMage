@@ -14,8 +14,17 @@ final class IssuesViewModel: ObservableObject {
     @Published var assignableUsers: [ForgeUser] = []
     @Published var filter: IssueState = .open
     @Published var isLoading = false
+    @Published var isLoadingMore = false
     @Published var errorMessage: String?
     @Published var authState: ForgeAuthState = .unknown
+
+    // Search + label filter + pagination.
+    @Published var searchText = ""
+    @Published var selectedLabels: Set<String> = []
+    @Published var totalCount = 0
+    @Published var hasMore = false
+    private var page = 1
+
     @Published var showNew = false
     @Published var newTitle = ""
     @Published var newBody = ""
@@ -58,22 +67,57 @@ final class IssuesViewModel: ObservableObject {
         }
     }
 
+    /// Loads (or reloads) the first page for the current filter/search/labels.
     func load() async {
         guard let repo, let provider else {
             issues = []
             return
         }
+        page = 1
         isLoading = true
         defer { isLoading = false }
-        do {
-            issues = try await provider.listIssues(repo, state: filter)
+        if repoLabels.isEmpty {
             repoLabels = (try? await provider.repoLabels(repo)) ?? []
+        }
+        if assignableUsers.isEmpty {
             assignableUsers = (try? await provider.assignableUsers(repo)) ?? []
+        }
+        do {
+            let result = try await provider.searchIssues(
+                repo, state: filter, query: searchText, labels: Array(selectedLabels), page: 1)
+            issues = result.items
+            totalCount = result.totalCount
+            hasMore = issues.count < result.totalCount
         } catch let error as ForgeError {
             handleForgeError(error)
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Appends the next page as the list scrolls to the bottom.
+    func loadMore() async {
+        guard let repo, let provider, hasMore, !isLoading, !isLoadingMore else { return }
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+        let next = page + 1
+        do {
+            let result = try await provider.searchIssues(
+                repo, state: filter, query: searchText, labels: Array(selectedLabels), page: next)
+            page = next
+            issues.append(contentsOf: result.items)
+            totalCount = result.totalCount
+            hasMore = issues.count < result.totalCount
+        } catch let error as ForgeError {
+            handleForgeError(error)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func toggleLabel(_ name: String) {
+        if selectedLabels.contains(name) { selectedLabels.remove(name) } else { selectedLabels.insert(name) }
+        Task { await load() }
     }
 
     func select(_ number: Int) async {

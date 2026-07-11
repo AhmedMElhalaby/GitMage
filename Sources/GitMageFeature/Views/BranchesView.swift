@@ -129,12 +129,11 @@ private struct BranchPaneRow: View {
                       : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
         )
         .overlay(alignment: .leading) {
-            if isSelected {
-                Capsule().fill(tokens.accentPrimary)
-                    .frame(width: 3, height: 18)
-                    .shadow(color: tokens.accentPrimary.opacity(0.8), radius: 4)
-                    .padding(.leading, 1)
-            }
+            Capsule().fill(tokens.accentPrimary)
+                .frame(width: 3, height: 18)
+                .shadow(color: tokens.accentPrimary.opacity(0.8), radius: 4)
+                .padding(.leading, 1)
+                .opacity(isSelected ? 1 : 0)
         }
         .contentShape(Rectangle())
         .onTapGesture(count: 2, perform: onCheckout)

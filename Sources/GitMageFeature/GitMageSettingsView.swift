@@ -20,6 +20,7 @@ struct GitMageSettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 appearanceSection
+                typographySection
                 shortcutsSection
                 githubSection
                 aboutSection
@@ -44,11 +45,11 @@ struct GitMageSettingsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text("Background opacity")
-                        .font(AinkradFont.display(12, weight: .medium))
+                        .font(AinkradFont.fixedDisplay(12, weight: .medium))
                         .foregroundStyle(tokens.foreground.opacity(0.85))
                     Spacer()
                     Text("\(Int(settings.backgroundOpacity * 100))%")
-                        .font(AinkradFont.mono(11))
+                        .font(AinkradFont.fixedMono(11))
                         .foregroundStyle(tokens.foreground.opacity(0.6))
                 }
                 Slider(
@@ -60,13 +61,13 @@ struct GitMageSettingsView: View {
                 )
                 .tint(tokens.accentPrimary)
                 Text("Below 100%, the workspace backdrop shows through. Blur is managed by the host.")
-                    .font(AinkradFont.display(11))
+                    .font(AinkradFont.fixedDisplay(11))
                     .foregroundStyle(tokens.foreground.opacity(0.45))
             }
 
             HStack {
                 Text("Follow theme accent")
-                    .font(AinkradFont.display(12, weight: .medium))
+                    .font(AinkradFont.fixedDisplay(12, weight: .medium))
                     .foregroundStyle(tokens.foreground.opacity(0.85))
                 Spacer()
                 NeonToggle(
@@ -81,11 +82,11 @@ struct GitMageSettingsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text("Diff text size")
-                        .font(AinkradFont.display(12, weight: .medium))
+                        .font(AinkradFont.fixedDisplay(12, weight: .medium))
                         .foregroundStyle(tokens.foreground.opacity(0.85))
                     Spacer()
                     Text("\(Int(settings.diffFontSize)) pt")
-                        .font(AinkradFont.mono(11))
+                        .font(AinkradFont.fixedMono(11))
                         .foregroundStyle(tokens.foreground.opacity(0.6))
                 }
                 Slider(
@@ -100,6 +101,76 @@ struct GitMageSettingsView: View {
         }
     }
 
+    private var typographySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SettingsSectionHeader(title: "TYPOGRAPHY", tokens: tokens)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Text size")
+                        .font(AinkradFont.fixedDisplay(12, weight: .medium))
+                        .foregroundStyle(tokens.foreground.opacity(0.85))
+                    Spacer()
+                    Text("\(Int(settings.textScale * 100))%")
+                        .font(AinkradFont.fixedMono(11))
+                        .foregroundStyle(tokens.foreground.opacity(0.6))
+                }
+                Slider(
+                    value: Binding(
+                        get: { settings.textScale },
+                        set: { v in settingsStore.update { $0.textScale = (v * 20).rounded() / 20 } }
+                    ),
+                    in: 0.8...1.3
+                )
+                .tint(tokens.accentPrimary)
+                Text("Scales every text in Git Mage. The sample below updates live.")
+                    .font(AinkradFont.fixedDisplay(11))
+                    .foregroundStyle(tokens.foreground.opacity(0.45))
+            }
+
+            fontPicker(title: "Display font", selection: settings.displayFontName,
+                       options: AinkradFont.displayFamilies) { name in
+                settingsStore.update { $0.displayFontName = name }
+            }
+            fontPicker(title: "Mono font", selection: settings.monoFontName,
+                       options: AinkradFont.monoFamilies) { name in
+                settingsStore.update { $0.monoFontName = name }
+            }
+
+            // Live sample — uses the SCALED fonts so it previews the setting.
+            VStack(alignment: .leading, spacing: 3) {
+                Text("The quick brown fox — Git Mage")
+                    .font(AinkradFont.display(14, weight: .medium))
+                    .foregroundStyle(tokens.foreground.opacity(0.9))
+                Text("feat/typography · a1b2c3d · +128 −44")
+                    .font(AinkradFont.mono(11))
+                    .foregroundStyle(tokens.foreground.opacity(0.6))
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tokens.surfaceElevated.opacity(0.4)))
+        }
+    }
+
+    private func fontPicker(title: String, selection: String, options: [String],
+                            onSelect: @escaping (String) -> Void) -> some View {
+        HStack {
+            Text(title)
+                .font(AinkradFont.fixedDisplay(12, weight: .medium))
+                .foregroundStyle(tokens.foreground.opacity(0.85))
+            Spacer()
+            Picker("", selection: Binding(get: { selection }, set: onSelect)) {
+                ForEach(options, id: \.self) { name in
+                    Text(name).tag(name)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .tint(tokens.accentPrimary)
+            .fixedSize()
+        }
+    }
+
     private var shortcutsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center) {
@@ -107,17 +178,17 @@ struct GitMageSettingsView: View {
                 Spacer()
                 Button("Reset to defaults") { resetShortcuts() }
                     .buttonStyle(.plain)
-                    .font(AinkradFont.display(11, weight: .medium))
+                    .font(AinkradFont.fixedDisplay(11, weight: .medium))
                     .foregroundStyle(tokens.accentPrimary.opacity(0.9))
             }
 
             Text("Click a shortcut to record a new combination, or × to unbind. A combination in use elsewhere moves here and unbinds the other command.")
-                .font(AinkradFont.display(11))
+                .font(AinkradFont.fixedDisplay(11))
                 .foregroundStyle(tokens.foreground.opacity(0.45))
 
             if let reassignNote {
                 Text(reassignNote)
-                    .font(AinkradFont.display(11, weight: .medium))
+                    .font(AinkradFont.fixedDisplay(11, weight: .medium))
                     .foregroundStyle(tokens.accentSecondary)
             }
 
@@ -129,7 +200,7 @@ struct GitMageSettingsView: View {
     private func shortcutGroup(_ title: String, _ commands: [GitMageCommand]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(AinkradFont.mono(9, weight: .medium))
+                .font(AinkradFont.fixedMono(9, weight: .medium))
                 .kerning(2)
                 .foregroundStyle(tokens.foreground.opacity(0.35))
                 .padding(.top, 4)
@@ -178,12 +249,12 @@ struct GitMageSettingsView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Personal access token")
-                    .font(AinkradFont.display(12, weight: .medium))
+                    .font(AinkradFont.fixedDisplay(12, weight: .medium))
                     .foregroundStyle(tokens.foreground.opacity(0.85))
 
                 SecureField("Personal access token", text: $tokenDraft)
                     .textFieldStyle(.plain)
-                    .font(AinkradFont.mono(12))
+                    .font(AinkradFont.fixedMono(12))
                     .foregroundStyle(tokens.foreground)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
@@ -207,7 +278,7 @@ struct GitMageSettingsView: View {
                             }
                             Text("Save & Verify")
                         }
-                        .font(AinkradFont.display(12, weight: .medium))
+                        .font(AinkradFont.fixedDisplay(12, weight: .medium))
                         .foregroundStyle(tokens.foreground)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
@@ -228,7 +299,7 @@ struct GitMageSettingsView: View {
                             signOut()
                         } label: {
                             Text("Sign out")
-                                .font(AinkradFont.display(12, weight: .medium))
+                                .font(AinkradFont.fixedDisplay(12, weight: .medium))
                                 .foregroundStyle(tokens.foreground.opacity(0.85))
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
@@ -247,12 +318,12 @@ struct GitMageSettingsView: View {
 
                 if let githubStatus {
                     Text(githubStatus)
-                        .font(AinkradFont.display(11))
+                        .font(AinkradFont.fixedDisplay(11))
                         .foregroundStyle(tokens.foreground.opacity(0.6))
                 }
 
                 Text("Create a token with the `repo` scope at github.com → Settings → Developer settings → Personal access tokens.")
-                    .font(AinkradFont.display(11))
+                    .font(AinkradFont.fixedDisplay(11))
                     .foregroundStyle(tokens.foreground.opacity(0.45))
             }
         }
@@ -287,7 +358,7 @@ struct GitMageSettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             SettingsSectionHeader(title: "STORAGE", tokens: tokens)
             Text("Your repository library and settings are stored in Git Mage's app-scoped document store.")
-                .font(AinkradFont.display(11))
+                .font(AinkradFont.fixedDisplay(11))
                 .foregroundStyle(tokens.foreground.opacity(0.45))
         }
     }
@@ -310,7 +381,7 @@ private struct ShortcutRecorderRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Text(command.title)
-                .font(AinkradFont.display(12))
+                .font(AinkradFont.fixedDisplay(12))
                 .foregroundStyle(tokens.foreground.opacity(0.85))
             Spacer()
             if chord != nil && !isRecording {
@@ -330,7 +401,7 @@ private struct ShortcutRecorderRow: View {
     private var captureChip: some View {
         Button(action: onStart) {
             Text(isRecording ? "Press keys…" : (chord?.display ?? "Add shortcut"))
-                .font(AinkradFont.mono(11, weight: .medium))
+                .font(AinkradFont.fixedMono(11, weight: .medium))
                 .foregroundStyle(chipTextColor)
                 .frame(minWidth: 92)
                 .padding(.horizontal, 10)

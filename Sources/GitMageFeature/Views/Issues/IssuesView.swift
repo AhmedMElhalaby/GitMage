@@ -46,66 +46,67 @@ struct IssuesContextPane: View {
     }
 
     private func gateMessage(_ text: String) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: "smallcircle.filled.circle")
-                .font(.system(size: 28, weight: .light))
-                .foregroundStyle(tokens.accentPrimary.opacity(0.5))
-            Text(text)
-                .font(AinkradFont.display(12))
-                .foregroundStyle(tokens.foreground.opacity(0.6))
-                .multilineTextAlignment(.center)
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        EmptyStateView(icon: "smallcircle.filled.circle", title: "Issues", message: text, tokens: tokens)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var countText: String {
+        model.totalCount > 0 ? "\(model.issues.count) / \(model.totalCount)" : "\(model.issues.count)"
     }
 
     private var toolbar: some View {
         VStack(spacing: 8) {
-            Picker("", selection: $model.filter) {
-                Text("Open").tag(IssueState.open)
-                Text("Closed").tag(IssueState.closed)
+            PaneHeader(title: "ISSUES", count: model.issues.count, countText: countText, tokens: tokens) {
+                RowIconButton(symbol: "plus", help: "New issue", tokens: tokens) { model.showNew = true }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .onChange(of: model.filter) { _, _ in
-                Task { await model.load() }
+            HUDFilter(
+                options: [("Open", IssueState.open), ("Closed", IssueState.closed)],
+                selection: $model.filter, tokens: tokens,
+                onChange: { Task { await model.load() } }
+            )
+            .padding(.horizontal, 12)
+            HUDSearchField(text: $model.searchText, placeholder: "Search issues…",
+                           tokens: tokens, onSubmit: { Task { await model.load() } })
+                .padding(.horizontal, 12)
+            if !model.repoLabels.isEmpty {
+                LabelFilterBar(labels: model.repoLabels, selected: model.selectedLabels,
+                               tokens: tokens, onToggle: model.toggleLabel)
+                    .padding(.horizontal, 12)
             }
-            Button {
-                model.showNew = true
-            } label: {
-                Label("New Issue", systemImage: "plus")
-                    .font(AinkradFont.display(12, weight: .medium))
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.plain)
-            .padding(.vertical, 6)
-            .background(tokens.surfaceElevated.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(tokens.accentPrimary.opacity(0.2)))
         }
-        .padding(12)
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder private var list: some View {
         if model.isLoading {
-            ProgressView().controlSize(.small)
+            GMSpinner(tint: tokens.accentSecondary, size: 22)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let errorMessage = model.errorMessage {
             gateMessage(errorMessage)
         } else if model.issues.isEmpty {
-            gateMessage("No issues.")
+            EmptyStateView(icon: "smallcircle.filled.circle", title: "No issues",
+                           message: "Nothing matches this filter.", tokens: tokens)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(model.issues) { issue in
+                LazyVStack(alignment: .leading, spacing: 3) {
+                    ForEach(Array(model.issues.enumerated()), id: \.element.id) { index, issue in
                         IssueRow(
                             issue: issue,
                             tokens: tokens,
                             isSelected: model.selectedNumber == issue.number,
                             onSelect: { Task { await model.select(issue.number) } }
                         )
+                        .onAppear {
+                            if index == model.issues.count - 1 { Task { await model.loadMore() } }
+                        }
+                    }
+                    if model.isLoadingMore {
+                        HStack { Spacer(); GMSpinner(tint: tokens.accentSecondary, size: 16); Spacer() }
+                            .padding(.vertical, 12)
                     }
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 12).padding(.bottom, 12)
             }
         }
     }
@@ -118,42 +119,54 @@ private struct IssueRow: View {
     let onSelect: () -> Void
     @State private var hovering = false
 
+    private var isOpen: Bool { issue.state.lowercased() == "open" }
+
     var body: some View {
-        Button(action: onSelect) {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "smallcircle.filled.circle")
-                    .font(.system(size: 11))
-                    .foregroundStyle(tokens.accentPrimary.opacity(0.7))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("#\(issue.number)  \(issue.title)")
-                        .font(AinkradFont.display(12, weight: .medium))
-                        .lineLimit(1)
-                    HStack(spacing: 6) {
-                        Text(issue.author)
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: isOpen ? "smallcircle.filled.circle" : "checkmark.circle")
+                .font(.system(size: 12))
+                .foregroundStyle(isOpen ? GMColor.status(.open, tokens) : GMColor.status(.closedMerged, tokens))
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(issue.title)
+                    .font(AinkradFont.display(12))
+                    .foregroundStyle(tokens.foreground.opacity(isSelected ? 1 : 0.9))
+                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text("#\(issue.number)")
+                        .font(AinkradFont.mono(9, weight: .medium))
+                        .foregroundStyle(tokens.accentSecondary)
+                    Text(issue.author)
+                        .font(AinkradFont.mono(9))
+                        .foregroundStyle(tokens.foreground.opacity(0.5)).lineLimit(1)
+                    if issue.commentCount > 0 {
+                        Label("\(issue.commentCount)", systemImage: "bubble.left")
                             .font(AinkradFont.mono(9))
-                            .foregroundStyle(tokens.foreground.opacity(0.5))
-                        if issue.commentCount > 0 {
-                            Label("\(issue.commentCount)", systemImage: "bubble.left")
-                                .font(AinkradFont.mono(9))
-                                .foregroundStyle(tokens.foreground.opacity(0.45))
-                        }
-                    }
-                    if !issue.labelNames.isEmpty {
-                        LabelChipsRow(names: issue.labelNames, tokens: tokens)
+                            .foregroundStyle(tokens.foreground.opacity(0.45))
                     }
                 }
-                Spacer()
+                if !issue.labelNames.isEmpty {
+                    LabelChipsRow(names: issue.labelNames, tokens: tokens)
+                }
             }
-            .padding(.horizontal, 8).padding(.vertical, 6)
-            .background(
-                isSelected ? tokens.accentPrimary.opacity(0.13) : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear),
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-            )
-            .contentShape(Rectangle())
+            Spacer(minLength: 4)
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 9).padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(isSelected ? tokens.accentPrimary.opacity(0.13)
+                      : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
+        )
+        .overlay(alignment: .leading) {
+            Capsule().fill(tokens.accentPrimary).frame(width: 3, height: 18)
+                .shadow(color: tokens.accentPrimary.opacity(0.8), radius: 4).padding(.leading, 1)
+                .opacity(isSelected ? 1 : 0)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onSelect)
         .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.14), value: hovering)
+        .animation(.easeOut(duration: 0.12), value: hovering)
+        .animation(.easeOut(duration: 0.14), value: isSelected)
     }
 }
 

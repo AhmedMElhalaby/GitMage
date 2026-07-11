@@ -14,8 +14,17 @@ final class PullRequestsViewModel: ObservableObject {
     @Published var checks: [CheckRun] = []
     @Published var filter: PRState = .open
     @Published var isLoading = false
+    @Published var isLoadingMore = false
     @Published var errorMessage: String?
     @Published var authState: ForgeAuthState = .unknown
+
+    // Search + label filter + pagination.
+    @Published var searchText = ""
+    @Published var selectedLabels: Set<String> = []
+    @Published var availableLabels: [IssueLabel] = []
+    @Published var totalCount = 0
+    @Published var hasMore = false
+    private var page = 1
 
     private let repo: RepoRef?
     // SAFETY: immutable, only accessed on the main actor
@@ -51,20 +60,54 @@ final class PullRequestsViewModel: ObservableObject {
         }
     }
 
+    /// Loads (or reloads) the first page for the current filter/search/labels.
     func load() async {
         guard let repo, let provider else {
             pullRequests = []
             return
         }
+        page = 1
         isLoading = true
         defer { isLoading = false }
+        if availableLabels.isEmpty {
+            availableLabels = (try? await provider.repoLabels(repo)) ?? []
+        }
         do {
-            pullRequests = try await provider.listPullRequests(repo, state: filter)
+            let result = try await provider.searchPullRequests(
+                repo, state: filter, query: searchText, labels: Array(selectedLabels), page: 1)
+            pullRequests = result.items
+            totalCount = result.totalCount
+            hasMore = pullRequests.count < result.totalCount
         } catch let error as ForgeError {
             handleForgeError(error)
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Appends the next page as the list scrolls to the bottom.
+    func loadMore() async {
+        guard let repo, let provider, hasMore, !isLoading, !isLoadingMore else { return }
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+        let next = page + 1
+        do {
+            let result = try await provider.searchPullRequests(
+                repo, state: filter, query: searchText, labels: Array(selectedLabels), page: next)
+            page = next
+            pullRequests.append(contentsOf: result.items)
+            totalCount = result.totalCount
+            hasMore = pullRequests.count < result.totalCount
+        } catch let error as ForgeError {
+            handleForgeError(error)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func toggleLabel(_ name: String) {
+        if selectedLabels.contains(name) { selectedLabels.remove(name) } else { selectedLabels.insert(name) }
+        Task { await load() }
     }
 
     func select(_ number: Int) async {

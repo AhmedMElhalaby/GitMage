@@ -91,7 +91,7 @@ private struct CommitRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(commit.summary)
-                    .font(AinkradFont.display(12, weight: isSelected ? .medium : .regular))
+                    .font(AinkradFont.display(12))
                     .foregroundStyle(tokens.foreground.opacity(isSelected ? 1 : 0.9))
                     .lineLimit(1)
                 HStack(spacing: 8) {
