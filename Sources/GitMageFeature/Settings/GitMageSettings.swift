@@ -12,11 +12,16 @@ struct GitMageSettings: Codable, Equatable {
     var followThemeAccent: Bool = true
     /// Point size of the monospaced diff text.
     var diffFontSize: Double = 12
+    /// Command → key chord bindings, keyed by `GitMageCommand.rawValue`. A
+    /// missing command is intentionally unbound.
+    var shortcuts: [String: KeyChord] = GitMageShortcutDefaults.map
 
-    init(backgroundOpacity: Double = 1.0, followThemeAccent: Bool = true, diffFontSize: Double = 12) {
+    init(backgroundOpacity: Double = 1.0, followThemeAccent: Bool = true,
+         diffFontSize: Double = 12, shortcuts: [String: KeyChord] = GitMageShortcutDefaults.map) {
         self.backgroundOpacity = backgroundOpacity
         self.followThemeAccent = followThemeAccent
         self.diffFontSize = diffFontSize
+        self.shortcuts = shortcuts
     }
 
     init(from decoder: Decoder) throws {
@@ -24,5 +29,6 @@ struct GitMageSettings: Codable, Equatable {
         backgroundOpacity = try c.decodeIfPresent(Double.self, forKey: .backgroundOpacity) ?? 1.0
         followThemeAccent = try c.decodeIfPresent(Bool.self, forKey: .followThemeAccent) ?? true
         diffFontSize = try c.decodeIfPresent(Double.self, forKey: .diffFontSize) ?? 12
+        shortcuts = try c.decodeIfPresent([String: KeyChord].self, forKey: .shortcuts) ?? GitMageShortcutDefaults.map
     }
 }

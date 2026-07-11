@@ -12,6 +12,7 @@ struct GitMageShell: View {
     @State private var worktreesModel: WorktreesViewModel?
     @State private var advancedModel: AdvancedViewModel?
     @State private var management: GitMageManagementKind?
+    @Namespace private var navNamespace
 
     init(host: HostServices, settingsStore: GitMageSettingsStore) {
         self.host = host
@@ -42,6 +43,20 @@ struct GitMageShell: View {
                     }
                 }
             }
+            .overlayPreferenceValue(TooltipKey.self) { item in
+                if let item {
+                    GeometryReader { proxy in
+                        let rect = proxy[item.anchor]
+                        HUDTooltipLabel(text: item.text, tokens: tokens)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                            .offset(
+                                x: item.edge == .trailing ? rect.maxX + 8 : rect.minX,
+                                y: item.edge == .trailing ? rect.midY - 12 : rect.maxY + 6
+                            )
+                    }
+                    .allowsHitTesting(false)
+                }
+            }
 
             if let management {
                 GitMageManagementOverlay(
@@ -53,6 +68,13 @@ struct GitMageShell: View {
             }
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.85), value: management)
+        .background(
+            ShortcutLayer(
+                shortcuts: settingsStore.settings.shortcuts,
+                hasActiveRepo: model.hasActiveRepo,
+                perform: perform
+            )
+        )
         .background(tokens.surface.opacity(appearance.backgroundOpacity))
         .foregroundStyle(tokens.foreground)
         .task { model.bootstrapIfNeeded() }
@@ -79,21 +101,21 @@ struct GitMageShell: View {
 
     private var topBar: some View {
         HStack(spacing: 14) {
-            RepoSwitcher(model: model, tokens: tokens) {
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) { management = .repos }
+            RepoSwitcher(model: model, tokens: tokens, shortcut: hint(.openRepos)) {
+                openManagement(.repos)
             }
             if model.hasActiveRepo {
-                BranchChip(model: model, tokens: tokens) {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) { management = .branches }
+                BranchChip(model: model, tokens: tokens, shortcut: hint(.openBranches)) {
+                    openManagement(.branches)
                 }
             }
             Spacer()
             if model.hasActiveRepo {
-                TopBarActionButton(label: "Fetch", icon: "arrow.down.circle",
+                TopBarActionButton(label: "Fetch", icon: "arrow.down.circle", shortcut: hint(.fetch),
                                    isLoading: model.activeOperation == "fetch", tokens: tokens) { model.fetch() }
-                TopBarActionButton(label: "Pull", icon: "arrow.down.to.line",
+                TopBarActionButton(label: "Pull", icon: "arrow.down.to.line", shortcut: hint(.pull),
                                    isLoading: model.activeOperation == "pull", tokens: tokens) { model.pull() }
-                TopBarActionButton(label: "Push", icon: "arrow.up.to.line", isPrimary: true,
+                TopBarActionButton(label: "Push", icon: "arrow.up.to.line", shortcut: hint(.push), isPrimary: true,
                                    isLoading: model.activeOperation == "push", tokens: tokens) { model.push() }
             }
         }
@@ -101,29 +123,54 @@ struct GitMageShell: View {
         .frame(height: 44)
     }
 
+    /// Display string for a command's bound chord, or nil when unbound.
+    private func hint(_ command: GitMageCommand) -> String? {
+        settingsStore.settings.shortcuts[command.rawValue]?.display
+    }
+
+    /// Display string for the "Go to <area>" command, or nil when unbound.
+    private func areaHint(_ area: NavArea) -> String? {
+        guard let command = GitMageCommand.areaCommands.first(where: { $0.area == area }) else { return nil }
+        return hint(command)
+    }
+
+    private func openManagement(_ kind: GitMageManagementKind) {
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) { management = kind }
+    }
+
+    /// Central handler for every keyboard-dispatched command.
+    private func perform(_ command: GitMageCommand) {
+        switch command {
+        case .openRepos: openManagement(.repos)
+        case .openBranches: if model.hasActiveRepo { openManagement(.branches) }
+        case .fetch: model.fetch()
+        case .pull: model.pull()
+        case .push: model.push()
+        default:
+            if let area = command.area {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.74)) { model.selectArea(area) }
+            }
+        }
+    }
+
     private var navRail: some View {
-        VStack(spacing: 10) {
-            ForEach(NavArea.built) { area in navItem(area) }
+        VStack(spacing: 6) {
+            ForEach(NavArea.built) { area in
+                NavRailItem(
+                    area: area,
+                    isActive: model.selectedArea == area,
+                    tokens: tokens,
+                    namespace: navNamespace,
+                    shortcut: areaHint(area),
+                    action: { model.selectArea(area) }
+                )
+            }
             Spacer()
         }
         .padding(.vertical, 14)
         .frame(width: 56)
         .frame(maxHeight: .infinity)
-        .background(tokens.background.opacity(0.4))
-    }
-
-    private func navItem(_ area: NavArea) -> some View {
-        let isActive = model.selectedArea == area
-        return Button { model.selectArea(area) } label: {
-            Image(systemName: area.icon)
-                .font(.system(size: 16))
-                .foregroundStyle(isActive ? tokens.accentPrimary : tokens.foreground.opacity(0.7))
-                .frame(width: 40, height: 34)
-                .background(isActive ? tokens.accentPrimary.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .help(area.title)
-        .animation(.easeOut(duration: 0.14), value: isActive)
+        .animation(.spring(response: 0.32, dampingFraction: 0.74), value: model.selectedArea)
     }
 
     @ViewBuilder private var contextPane: some View {
