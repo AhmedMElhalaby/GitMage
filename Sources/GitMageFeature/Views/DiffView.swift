@@ -31,8 +31,8 @@ struct DiffView: View {
     }
 
     private func colorAndBackground(for line: String) -> (Color, Color) {
-        if line.hasPrefix("+") && !line.hasPrefix("+++") { return (.green, Color.green.opacity(0.08)) }
-        else if line.hasPrefix("-") && !line.hasPrefix("---") { return (.red, Color.red.opacity(0.08)) }
+        if line.hasPrefix("+") && !line.hasPrefix("+++") { return (GMColor.diffAdd(tokens), GMColor.diffAdd(tokens).opacity(0.08)) }
+        else if line.hasPrefix("-") && !line.hasPrefix("---") { return (GMColor.diffRemove(tokens), GMColor.diffRemove(tokens).opacity(0.08)) }
         else if line.hasPrefix("@@") { return (tokens.accentSecondary, .clear) }
         else if line.hasPrefix("diff ") || line.hasPrefix("index ") || line.hasPrefix("+++") || line.hasPrefix("---") { return (tokens.foreground.opacity(0.4), .clear) }
         else { return (tokens.foreground.opacity(0.85), .clear) }

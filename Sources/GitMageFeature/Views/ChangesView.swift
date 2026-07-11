@@ -17,6 +17,13 @@ struct ChangesContextPane: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if !unstaged.isEmpty {
+                HStack {
+                    Spacer()
+                    GMButton("Stage All", kind: .secondary, systemImage: "plus", tokens: tokens) { model.stageAllChanges() }
+                }
+                .padding(.horizontal, 12).padding(.top, 10)
+            }
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     group(title: "STAGED", count: staged.count, changes: staged, staged: true)
@@ -113,14 +120,8 @@ struct CommitBox: View {
             HStack {
                 Text("\(stagedCount) staged").font(AinkradFont.mono(10)).foregroundStyle(tokens.foreground.opacity(0.5))
                 Spacer()
-                Button { model.commitChanges() } label: {
-                    Text("Commit").font(AinkradFont.display(12, weight: .semibold))
-                        .padding(.horizontal, 14).padding(.vertical, 6)
-                        .background(accent.opacity(stagedCount == 0 ? 0.3 : 0.9), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .foregroundStyle(.white)
-                }
-                .buttonStyle(.plain)
-                .disabled(model.isLoading || stagedCount == 0 || model.draftCommitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                GMButton("Commit", kind: .primary, tokens: tokens) { model.commitChanges() }
+                    .disabled(model.isLoading || stagedCount == 0 || model.draftCommitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(12)

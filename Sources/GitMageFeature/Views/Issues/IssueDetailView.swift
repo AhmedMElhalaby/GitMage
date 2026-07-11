@@ -72,7 +72,7 @@ struct IssueDetailView: View {
             .foregroundStyle(Color.white.opacity(0.9))
             .padding(.horizontal, 6).padding(.vertical, 2)
             .background(
-                (isOpen ? tokens.accentPrimary : tokens.foreground.opacity(0.4)).opacity(0.85),
+                GMColor.status(isOpen ? .open : .closedMerged, tokens).opacity(0.85),
                 in: RoundedRectangle(cornerRadius: 5, style: .continuous)
             )
     }

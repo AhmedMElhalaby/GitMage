@@ -72,9 +72,9 @@ struct GitMageShell: View {
             }
             Spacer()
             if model.hasActiveRepo {
-                remoteButton("Fetch", systemImage: "arrow.down.circle") { model.fetch() }
-                remoteButton("Pull", systemImage: "arrow.down.to.line") { model.pull() }
-                remoteButton("Push", systemImage: "arrow.up.to.line") { model.push() }
+                GMButton("Fetch", kind: .secondary, systemImage: "arrow.down.circle", tokens: tokens) { model.fetch() }
+                GMButton("Pull", kind: .secondary, systemImage: "arrow.down.to.line", tokens: tokens) { model.pull() }
+                GMButton("Push", kind: .primary, systemImage: "arrow.up.to.line", tokens: tokens) { model.push() }
             }
             if model.isLoading { ProgressView().controlSize(.small) }
         }
@@ -102,16 +102,6 @@ struct GitMageShell: View {
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-    }
-
-    private func remoteButton(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: systemImage).font(AinkradFont.display(12, weight: .medium))
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(tokens.surfaceElevated.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(tokens.accentPrimary.opacity(0.2)))
     }
 
     private var navRail: some View {
