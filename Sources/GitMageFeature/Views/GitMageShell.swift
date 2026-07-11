@@ -11,6 +11,7 @@ struct GitMageShell: View {
     @State private var issuesHasGitHubRemote = false
     @State private var worktreesModel: WorktreesViewModel?
     @State private var advancedModel: AdvancedViewModel?
+    @State private var management: GitMageManagementKind?
 
     init(host: HostServices, settingsStore: GitMageSettingsStore) {
         self.host = host
@@ -24,22 +25,34 @@ struct GitMageShell: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            topBar
-            HStack(spacing: 0) {
-                navRail
-                if model.hasActiveRepo {
-                    contextPane
-                        .frame(width: 300)
-                        .background(tokens.surface.opacity(0.35))
-                    detailPane
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    emptyLibraryState
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        ZStack {
+            VStack(spacing: 0) {
+                topBar
+                HStack(spacing: 0) {
+                    navRail
+                    if model.hasActiveRepo {
+                        contextPane
+                            .frame(width: 300)
+                            .background(tokens.surface.opacity(0.35))
+                        detailPane
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        emptyLibraryState
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
                 }
             }
+
+            if let management {
+                GitMageManagementOverlay(
+                    model: model,
+                    tokens: tokens,
+                    kind: management,
+                    dismiss: { withAnimation(.easeOut(duration: 0.16)) { self.management = nil } }
+                )
+            }
         }
+        .animation(.spring(response: 0.32, dampingFraction: 0.85), value: management)
         .background(tokens.surface.opacity(appearance.backgroundOpacity))
         .foregroundStyle(tokens.foreground)
         .task { model.bootstrapIfNeeded() }
@@ -66,42 +79,26 @@ struct GitMageShell: View {
 
     private var topBar: some View {
         HStack(spacing: 14) {
-            RepoSwitcher(model: model, tokens: tokens)
+            RepoSwitcher(model: model, tokens: tokens) {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) { management = .repos }
+            }
             if model.hasActiveRepo {
-                branchMenu
+                BranchChip(model: model, tokens: tokens) {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) { management = .branches }
+                }
             }
             Spacer()
             if model.hasActiveRepo {
-                GMButton("Fetch", kind: .secondary, systemImage: "arrow.down.circle", tokens: tokens) { model.fetch() }
-                GMButton("Pull", kind: .secondary, systemImage: "arrow.down.to.line", tokens: tokens) { model.pull() }
-                GMButton("Push", kind: .primary, systemImage: "arrow.up.to.line", tokens: tokens) { model.push() }
+                TopBarActionButton(label: "Fetch", icon: "arrow.down.circle",
+                                   isLoading: model.activeOperation == "fetch", tokens: tokens) { model.fetch() }
+                TopBarActionButton(label: "Pull", icon: "arrow.down.to.line",
+                                   isLoading: model.activeOperation == "pull", tokens: tokens) { model.pull() }
+                TopBarActionButton(label: "Push", icon: "arrow.up.to.line", isPrimary: true,
+                                   isLoading: model.activeOperation == "push", tokens: tokens) { model.push() }
             }
-            if model.isLoading { ProgressView().controlSize(.small) }
         }
         .padding(.horizontal, 16)
         .frame(height: 44)
-    }
-
-    private var branchMenu: some View {
-        Menu {
-            ForEach(model.branches) { branch in
-                Button {
-                    model.selectedBranchName = branch.name
-                    model.checkoutSelectedBranch()
-                } label: {
-                    Label(branch.name, systemImage: branch.isCurrent ? "checkmark" : "arrow.triangle.branch")
-                }
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "arrow.triangle.branch")
-                Text(model.snapshot?.branchName ?? "—").font(AinkradFont.display(12))
-                Image(systemName: "chevron.down").font(.system(size: 9))
-            }
-            .foregroundStyle(tokens.foreground.opacity(0.8))
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
     }
 
     private var navRail: some View {

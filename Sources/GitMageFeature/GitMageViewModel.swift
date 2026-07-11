@@ -20,6 +20,9 @@ final class GitMageViewModel: ObservableObject {
     @Published var selectedChangeID: String?
     @Published var diffSnapshot: GitDiffSnapshot?
     @Published var isLoading = false
+    /// Label of the git action currently running (e.g. "fetch", "pull",
+    /// "push"), so a button can show its own inline spinner. Nil when idle.
+    @Published var activeOperation: String?
     @Published var isLoadingDiff = false
     @Published var errorMessage: String?
 
@@ -263,6 +266,7 @@ final class GitMageViewModel: ObservableObject {
                 persistLibrary()
                 log.info("Loaded repository snapshot for \(path)")
                 isLoading = false
+                activeOperation = nil
                 if let selectedChangeID,
                    let existingChange = newSnapshot.changes.first(where: { $0.id == selectedChangeID }) {
                     selectChange(existingChange)
@@ -280,6 +284,7 @@ final class GitMageViewModel: ObservableObject {
                 diffSnapshot = nil
                 selectedStashDiff = nil
                 isLoading = false
+                activeOperation = nil
                 report(error, context: "load repository snapshot")
             }
         }
@@ -451,6 +456,7 @@ final class GitMageViewModel: ObservableObject {
     private func run(context: String, _ action: @escaping () async throws -> Void) {
         guard hasActiveRepo else { return }
         isLoading = true
+        activeOperation = context
         errorMessage = nil
         Task { @MainActor in
             do {
@@ -459,6 +465,7 @@ final class GitMageViewModel: ObservableObject {
                 refresh()
             } catch {
                 isLoading = false
+                activeOperation = nil
                 report(error, context: context)
             }
         }
