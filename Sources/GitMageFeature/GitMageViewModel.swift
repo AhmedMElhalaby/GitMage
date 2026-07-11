@@ -29,6 +29,13 @@ final class GitMageViewModel: ObservableObject {
     // Area / History state
     @Published var selectedArea: NavArea = .changes
     @Published var commits: [GitCommitSummary] = []
+    /// True while a history page is loading; drives the scroll footer spinner.
+    @Published var isLoadingCommits = false
+    /// False once a page returns fewer than `commitPageSize` rows (end of log).
+    @Published var hasMoreCommits = true
+    /// Total commits reachable from HEAD, for the "loaded / total" header.
+    @Published var totalCommits: Int?
+    private let commitPageSize = 50
     @Published var selectedCommitID: String?
     @Published var commitDiff: GitDiffSnapshot?
 
@@ -319,13 +326,39 @@ final class GitMageViewModel: ObservableObject {
         if area == .history && commits.isEmpty && hasActiveRepo { loadCommits() }
     }
 
+    /// Loads (or reloads from scratch) the first page of history.
     func loadCommits() {
+        commits = []
+        hasMoreCommits = true
+        loadCommitTotal()
+        loadMoreCommits()
+    }
+
+    private func loadCommitTotal() {
+        let path = repositoryPath
+        guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { totalCommits = nil; return }
+        Task { @MainActor in
+            totalCommits = try? await client.commitCount(in: path)
+        }
+    }
+
+    /// Appends the next page of commits. Safe to call repeatedly from scroll —
+    /// re-entrancy and end-of-history are guarded.
+    func loadMoreCommits() {
+        guard hasActiveRepo, hasMoreCommits, !isLoadingCommits else { return }
         let path = repositoryPath
         guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let skip = commits.count
+        isLoadingCommits = true
         Task { @MainActor in
-            let loaded = (try? await client.loadLog(limit: 100, in: path)) ?? []
-            commits = loaded
-            if selectedCommitID == nil, let first = loaded.first {
+            let page = (try? await client.loadLog(skip: skip, limit: commitPageSize, in: path)) ?? []
+            // Guard against a concurrent refresh having reset the list.
+            if commits.count == skip {
+                commits.append(contentsOf: page)
+            }
+            hasMoreCommits = page.count == commitPageSize
+            isLoadingCommits = false
+            if selectedCommitID == nil, let first = commits.first {
                 selectCommit(first)
             }
         }

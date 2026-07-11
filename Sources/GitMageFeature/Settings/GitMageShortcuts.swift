@@ -3,7 +3,7 @@ import SwiftUI
 /// Every user-triggerable command that can carry a keyboard shortcut.
 enum GitMageCommand: String, CaseIterable, Identifiable {
     case openRepos, openBranches, fetch, pull, push
-    case areaChanges, areaHistory, areaBranches, areaStashes
+    case areaChanges, areaHistory, areaStashes
     case areaPullRequests, areaWorktrees, areaIssues, areaAdvanced
 
     var id: String { rawValue }
@@ -18,7 +18,6 @@ enum GitMageCommand: String, CaseIterable, Identifiable {
         case .push: return "Push"
         case .areaChanges: return "Go to Changes"
         case .areaHistory: return "Go to History"
-        case .areaBranches: return "Go to Branches"
         case .areaStashes: return "Go to Stashes"
         case .areaPullRequests: return "Go to Pull Requests"
         case .areaWorktrees: return "Go to Worktrees"
@@ -32,7 +31,6 @@ enum GitMageCommand: String, CaseIterable, Identifiable {
         switch self {
         case .areaChanges: return .changes
         case .areaHistory: return .history
-        case .areaBranches: return .branches
         case .areaStashes: return .stashes
         case .areaPullRequests: return .pullRequests
         case .areaWorktrees: return .worktrees
@@ -50,7 +48,7 @@ enum GitMageCommand: String, CaseIterable, Identifiable {
     /// Actions first (in bar order), then areas (in rail order).
     static var actions: [GitMageCommand] { [.openRepos, .openBranches, .fetch, .pull, .push] }
     static var areaCommands: [GitMageCommand] {
-        [.areaChanges, .areaHistory, .areaBranches, .areaStashes,
+        [.areaChanges, .areaHistory, .areaStashes,
          .areaPullRequests, .areaWorktrees, .areaIssues, .areaAdvanced]
     }
 }
@@ -127,12 +125,11 @@ enum GitMageShortcutDefaults {
             GitMageCommand.push.rawValue: KeyChord(key: "u", command: true, option: true),
             GitMageCommand.areaChanges.rawValue: KeyChord(key: "1", control: true),
             GitMageCommand.areaHistory.rawValue: KeyChord(key: "2", control: true),
-            GitMageCommand.areaBranches.rawValue: KeyChord(key: "3", control: true),
-            GitMageCommand.areaStashes.rawValue: KeyChord(key: "4", control: true),
-            GitMageCommand.areaPullRequests.rawValue: KeyChord(key: "5", control: true),
-            GitMageCommand.areaWorktrees.rawValue: KeyChord(key: "6", control: true),
-            GitMageCommand.areaIssues.rawValue: KeyChord(key: "7", control: true),
-            GitMageCommand.areaAdvanced.rawValue: KeyChord(key: "8", control: true),
+            GitMageCommand.areaStashes.rawValue: KeyChord(key: "3", control: true),
+            GitMageCommand.areaPullRequests.rawValue: KeyChord(key: "4", control: true),
+            GitMageCommand.areaWorktrees.rawValue: KeyChord(key: "5", control: true),
+            GitMageCommand.areaIssues.rawValue: KeyChord(key: "6", control: true),
+            GitMageCommand.areaAdvanced.rawValue: KeyChord(key: "7", control: true),
         ]
     }
 }
