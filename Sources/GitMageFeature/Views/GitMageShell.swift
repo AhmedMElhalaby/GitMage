@@ -11,6 +11,7 @@ struct GitMageShell: View {
     @State private var issuesHasGitHubRemote = false
     @State private var worktreesModel: WorktreesViewModel?
     @State private var advancedModel: AdvancedViewModel?
+    @State private var management: GitMageManagementKind?
 
     init(host: HostServices, settingsStore: GitMageSettingsStore) {
         self.host = host
@@ -24,22 +25,34 @@ struct GitMageShell: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            topBar
-            HStack(spacing: 0) {
-                navRail
-                if model.hasActiveRepo {
-                    contextPane
-                        .frame(width: 300)
-                        .background(tokens.surface.opacity(0.35))
-                    detailPane
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    emptyLibraryState
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        ZStack {
+            VStack(spacing: 0) {
+                topBar
+                HStack(spacing: 0) {
+                    navRail
+                    if model.hasActiveRepo {
+                        contextPane
+                            .frame(width: 300)
+                            .background(tokens.surface.opacity(0.35))
+                        detailPane
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        emptyLibraryState
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
                 }
             }
+
+            if let management {
+                GitMageManagementOverlay(
+                    model: model,
+                    tokens: tokens,
+                    kind: management,
+                    dismiss: { withAnimation(.easeOut(duration: 0.16)) { self.management = nil } }
+                )
+            }
         }
+        .animation(.spring(response: 0.32, dampingFraction: 0.85), value: management)
         .background(tokens.surface.opacity(appearance.backgroundOpacity))
         .foregroundStyle(tokens.foreground)
         .task { model.bootstrapIfNeeded() }
@@ -66,61 +79,32 @@ struct GitMageShell: View {
 
     private var topBar: some View {
         HStack(spacing: 14) {
-            RepoSwitcher(model: model, tokens: tokens)
+            RepoSwitcher(model: model, tokens: tokens) {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) { management = .repos }
+            }
             if model.hasActiveRepo {
-                branchMenu
+                BranchChip(model: model, tokens: tokens) {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) { management = .branches }
+                }
             }
             Spacer()
             if model.hasActiveRepo {
-                remoteButton("Fetch", systemImage: "arrow.down.circle") { model.fetch() }
-                remoteButton("Pull", systemImage: "arrow.down.to.line") { model.pull() }
-                remoteButton("Push", systemImage: "arrow.up.to.line") { model.push() }
+                TopBarActionButton(label: "Fetch", icon: "arrow.down.circle",
+                                   isLoading: model.activeOperation == "fetch", tokens: tokens) { model.fetch() }
+                TopBarActionButton(label: "Pull", icon: "arrow.down.to.line",
+                                   isLoading: model.activeOperation == "pull", tokens: tokens) { model.pull() }
+                TopBarActionButton(label: "Push", icon: "arrow.up.to.line", isPrimary: true,
+                                   isLoading: model.activeOperation == "push", tokens: tokens) { model.push() }
             }
-            if model.isLoading { ProgressView().controlSize(.small) }
         }
         .padding(.horizontal, 16)
         .frame(height: 44)
-    }
-
-    private var branchMenu: some View {
-        Menu {
-            ForEach(model.branches) { branch in
-                Button {
-                    model.selectedBranchName = branch.name
-                    model.checkoutSelectedBranch()
-                } label: {
-                    Label(branch.name, systemImage: branch.isCurrent ? "checkmark" : "arrow.triangle.branch")
-                }
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "arrow.triangle.branch")
-                Text(model.snapshot?.branchName ?? "—").font(AinkradFont.display(12))
-                Image(systemName: "chevron.down").font(.system(size: 9))
-            }
-            .foregroundStyle(tokens.foreground.opacity(0.8))
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-    }
-
-    private func remoteButton(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: systemImage).font(AinkradFont.display(12, weight: .medium))
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(tokens.surfaceElevated.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(tokens.accentPrimary.opacity(0.2)))
     }
 
     private var navRail: some View {
         VStack(spacing: 10) {
             ForEach(NavArea.built) { area in navItem(area) }
             Spacer()
-            if !NavArea.reserved.isEmpty {
-                ForEach(NavArea.reserved) { area in navItem(area) }
-            }
         }
         .padding(.vertical, 14)
         .frame(width: 56)
@@ -133,12 +117,12 @@ struct GitMageShell: View {
         return Button { model.selectArea(area) } label: {
             Image(systemName: area.icon)
                 .font(.system(size: 16))
-                .foregroundStyle(isActive ? tokens.accentPrimary : tokens.foreground.opacity(area.isReserved ? 0.35 : 0.7))
+                .foregroundStyle(isActive ? tokens.accentPrimary : tokens.foreground.opacity(0.7))
                 .frame(width: 40, height: 34)
                 .background(isActive ? tokens.accentPrimary.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
-        .help(area.title + (area.isReserved ? " (coming soon)" : ""))
+        .help(area.title)
         .animation(.easeOut(duration: 0.14), value: isActive)
     }
 
@@ -180,7 +164,24 @@ struct GitMageShell: View {
         switch model.selectedArea {
         case .changes: DiffView(diff: model.diffSnapshot, tokens: tokens, fontSize: appearance.diffFontSize)
         case .history: DiffView(diff: model.commitDiff, tokens: tokens, fontSize: appearance.diffFontSize)
-        case .branches, .stashes: DiffView(diff: model.diffSnapshot, tokens: tokens, fontSize: appearance.diffFontSize)
+        case .branches:
+            EmptyStateView(
+                icon: "arrow.triangle.branch",
+                title: model.selectedBranchName.isEmpty ? "Branches" : model.selectedBranchName,
+                message: "Select a branch to check out from the list.",
+                tokens: tokens
+            )
+        case .stashes:
+            if let selectedStashDiff = model.selectedStashDiff {
+                DiffView(diff: selectedStashDiff, tokens: tokens, fontSize: appearance.diffFontSize)
+            } else {
+                EmptyStateView(
+                    icon: "tray.2",
+                    title: "Stashes",
+                    message: "Select a stash to preview its diff.",
+                    tokens: tokens
+                )
+            }
         case .pullRequests:
             if let prModel {
                 PullRequestDetailView(model: prModel, tokens: tokens, fontSize: appearance.diffFontSize)

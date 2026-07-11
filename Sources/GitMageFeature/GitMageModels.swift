@@ -145,6 +145,23 @@ struct GitChange: Identifiable, Equatable {
     var canUnstage: Bool {
         isIndexStaged && kind != .conflicted
     }
+
+    /// True when the index column (statusCode[0]) reflects a staged change.
+    var hasStagedComponent: Bool {
+        guard kind != .ignored, !isUntracked else { return false }
+        let idx = statusCode.first ?? " "
+        return idx != " " && idx != "?"
+    }
+
+    /// True when the worktree column (statusCode[1]) reflects an unstaged change,
+    /// or the file is untracked (its entire content is "unstaged").
+    var hasUnstagedComponent: Bool {
+        if isUntracked { return true }
+        guard kind != .ignored else { return false }
+        let chars = Array(statusCode)
+        let work = chars.count > 1 ? chars[1] : " "
+        return work != " "
+    }
 }
 
 enum GitChangeKind: Equatable {

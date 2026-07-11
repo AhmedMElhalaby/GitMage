@@ -135,6 +135,7 @@ struct PullRequestDetailView: View {
         .padding(.horizontal, 10).padding(.vertical, 6)
         .background(tokens.surfaceElevated.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(tokens.accentPrimary.opacity(0.2)))
+        .disabled(model.isLoading)
     }
 
     private var mergeMenu: some View {
@@ -149,7 +150,7 @@ struct PullRequestDetailView: View {
         .fixedSize()
         .padding(.horizontal, 10).padding(.vertical, 6)
         .background(tokens.accentPrimary.opacity(model.detail?.mergeable == false ? 0.08 : 0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .disabled(model.detail?.mergeable == false)
+        .disabled(model.isLoading || model.detail?.mergeable == false)
     }
 
     // MARK: - Files

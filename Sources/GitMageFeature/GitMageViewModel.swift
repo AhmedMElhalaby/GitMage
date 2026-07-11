@@ -15,10 +15,14 @@ final class GitMageViewModel: ObservableObject {
     @Published var snapshot: GitRepositorySnapshot?
     @Published var branches: [GitBranchSummary] = []
     @Published var stashes: [GitStashEntry] = []
+    @Published var selectedStashDiff: GitDiffSnapshot?
     @Published var selectedBranchName: String = ""
     @Published var selectedChangeID: String?
     @Published var diffSnapshot: GitDiffSnapshot?
     @Published var isLoading = false
+    /// Label of the git action currently running (e.g. "fetch", "pull",
+    /// "push"), so a button can show its own inline spinner. Nil when idle.
+    @Published var activeOperation: String?
     @Published var isLoadingDiff = false
     @Published var errorMessage: String?
 
@@ -75,6 +79,7 @@ final class GitMageViewModel: ObservableObject {
         branches = []
         stashes = []
         diffSnapshot = nil
+        selectedStashDiff = nil
         errorMessage = nil
     }
 
@@ -250,6 +255,7 @@ final class GitMageViewModel: ObservableObject {
                 snapshot = newSnapshot
                 branches = newBranches
                 stashes = newStashes
+                selectedStashDiff = nil
                 commits = []
                 selectedCommitID = nil
                 commitDiff = nil
@@ -260,6 +266,7 @@ final class GitMageViewModel: ObservableObject {
                 persistLibrary()
                 log.info("Loaded repository snapshot for \(path)")
                 isLoading = false
+                activeOperation = nil
                 if let selectedChangeID,
                    let existingChange = newSnapshot.changes.first(where: { $0.id == selectedChangeID }) {
                     selectChange(existingChange)
@@ -275,7 +282,9 @@ final class GitMageViewModel: ObservableObject {
                 branches = []
                 stashes = []
                 diffSnapshot = nil
+                selectedStashDiff = nil
                 isLoading = false
+                activeOperation = nil
                 report(error, context: "load repository snapshot")
             }
         }
@@ -368,6 +377,17 @@ final class GitMageViewModel: ObservableObject {
         run(context: "drop \(entry.id)") { [self] in try await client.stashDrop(entry, in: repositoryPath) }
     }
 
+    func selectStash(_ entry: GitStashEntry) {
+        let path = repositoryPath
+        Task { @MainActor in
+            do {
+                selectedStashDiff = try await client.stashDiff(entry.id, in: path)
+            } catch {
+                selectedStashDiff = GitDiffSnapshot(title: entry.id, body: error.localizedDescription, isEmpty: true)
+            }
+        }
+    }
+
     // MARK: - Diff
 
     func selectChange(_ change: GitChange) {
@@ -436,6 +456,7 @@ final class GitMageViewModel: ObservableObject {
     private func run(context: String, _ action: @escaping () async throws -> Void) {
         guard hasActiveRepo else { return }
         isLoading = true
+        activeOperation = context
         errorMessage = nil
         Task { @MainActor in
             do {
@@ -444,6 +465,7 @@ final class GitMageViewModel: ObservableObject {
                 refresh()
             } catch {
                 isLoading = false
+                activeOperation = nil
                 report(error, context: context)
             }
         }

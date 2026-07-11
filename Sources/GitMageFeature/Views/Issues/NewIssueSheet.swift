@@ -34,7 +34,7 @@ struct NewIssueSheet: View {
                 Button("Cancel") { model.showNew = false }
                 Button("Create") { Task { await model.create() } }
                     .buttonStyle(.borderedProminent)
-                    .disabled(!canCreate)
+                    .disabled(!canCreate || model.isLoading)
             }
         }
         .padding(24)
@@ -52,7 +52,11 @@ struct NewIssueSheet: View {
                         model.newLabels.insert(label.name)
                     }
                 } label: {
-                    Label(label.name, systemImage: model.newLabels.contains(label.name) ? "checkmark" : "")
+                    if model.newLabels.contains(label.name) {
+                        Label(label.name, systemImage: "checkmark")
+                    } else {
+                        Text(label.name)
+                    }
                 }
             }
         } label: {
@@ -73,7 +77,11 @@ struct NewIssueSheet: View {
                         model.newAssignees.insert(user.login)
                     }
                 } label: {
-                    Label(user.login, systemImage: model.newAssignees.contains(user.login) ? "checkmark" : "")
+                    if model.newAssignees.contains(user.login) {
+                        Label(user.login, systemImage: "checkmark")
+                    } else {
+                        Text(user.login)
+                    }
                 }
             }
         } label: {

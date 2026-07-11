@@ -6,11 +6,24 @@ struct ChangesContextPane: View {
     let tokens: HostThemeTokens
     let accent: Color
 
-    private var staged: [GitChange] { model.snapshot?.changes.filter { $0.isIndexStaged } ?? [] }
-    private var unstaged: [GitChange] { model.snapshot?.changes.filter { !$0.isIndexStaged } ?? [] }
+    private var staged: [GitChange] { model.snapshot?.changes.filter { $0.hasStagedComponent } ?? [] }
+    private var unstaged: [GitChange] { model.snapshot?.changes.filter { $0.hasUnstagedComponent } ?? [] }
+
+    /// Group-scoped selection key ("staged:<id>" / "unstaged:<id>") so a file that
+    /// appears in both groups only highlights the side the user actually clicked.
+    /// The VM's `selectedChangeID` (plain change id) still drives which change the
+    /// stage/unstage/discard actions target and is left untouched.
+    @State private var selectedRowID: String?
 
     var body: some View {
         VStack(spacing: 0) {
+            if !unstaged.isEmpty {
+                HStack {
+                    Spacer()
+                    GMButton("Stage All", kind: .secondary, systemImage: "plus", tokens: tokens) { model.stageAllChanges() }
+                }
+                .padding(.horizontal, 12).padding(.top, 10)
+            }
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     group(title: "STAGED", count: staged.count, changes: staged, staged: true)
@@ -30,12 +43,13 @@ struct ChangesContextPane: View {
                     Spacer()
                     Text("\(count)").font(AinkradFont.mono(10)).foregroundStyle(tokens.foreground.opacity(0.5))
                 }
-                ForEach(changes) { change in
-                    ChangeRow(change: change, isSelected: model.selectedChangeID == change.id, staged: staged, tokens: tokens, accent: accent,
-                              onSelect: { model.selectChange(change) },
-                              onStage: { model.selectChange(change); model.stageSelectedChange() },
-                              onUnstage: { model.selectChange(change); model.unstageSelectedChange() },
-                              onDiscard: { model.selectChange(change); model.discardSelectedChange() })
+                ForEach(changes, id: \.id) { change in
+                    let rowID = "\(staged ? "staged" : "unstaged"):\(change.id)"
+                    ChangeRow(change: change, isSelected: selectedRowID == rowID, staged: staged, tokens: tokens, accent: accent,
+                              onSelect: { selectedRowID = rowID; model.selectChange(change) },
+                              onStage: { selectedRowID = rowID; model.selectChange(change); model.stageSelectedChange() },
+                              onUnstage: { selectedRowID = rowID; model.selectChange(change); model.unstageSelectedChange() },
+                              onDiscard: { selectedRowID = rowID; model.selectChange(change); model.discardSelectedChange() })
                 }
             }
         }
@@ -106,14 +120,8 @@ struct CommitBox: View {
             HStack {
                 Text("\(stagedCount) staged").font(AinkradFont.mono(10)).foregroundStyle(tokens.foreground.opacity(0.5))
                 Spacer()
-                Button { model.commitChanges() } label: {
-                    Text("Commit").font(AinkradFont.display(12, weight: .semibold))
-                        .padding(.horizontal, 14).padding(.vertical, 6)
-                        .background(accent.opacity(stagedCount == 0 ? 0.3 : 0.9), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .foregroundStyle(.white)
-                }
-                .buttonStyle(.plain)
-                .disabled(stagedCount == 0 || model.draftCommitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                GMButton("Commit", kind: .primary, tokens: tokens) { model.commitChanges() }
+                    .disabled(model.isLoading || stagedCount == 0 || model.draftCommitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(12)

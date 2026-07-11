@@ -6,6 +6,7 @@ enum GitRepositoryError: Error, LocalizedError, Equatable {
     case notARepository(String)
     case invalidCommitMessage
     case invalidBranchName
+    case invalidTagName
     case invalidRemoteURL
     case nothingToCommit
     case detachedHead
@@ -23,6 +24,8 @@ enum GitRepositoryError: Error, LocalizedError, Equatable {
             return "Enter a non-empty commit message."
         case .invalidBranchName:
             return "Enter a non-empty branch name."
+        case .invalidTagName:
+            return "Enter a non-empty tag name."
         case .invalidRemoteURL:
             return "Enter a repository URL to clone."
         case .nothingToCommit:
@@ -351,6 +354,20 @@ actor GitRepositoryClient {
         let body = output.trimmingCharacters(in: .whitespacesAndNewlines)
         return GitDiffSnapshot(
             title: sha,
+            body: body.isEmpty ? "No diff available." : body,
+            isEmpty: body.isEmpty
+        )
+    }
+
+    func stashDiff(_ id: String, in path: String) throws -> GitDiffSnapshot {
+        let rootURL = try repositoryRootURL(for: path)
+        let output = try runGit(
+            ["stash", "show", "-p", "--no-color", "--no-ext-diff", "--unified=3", id],
+            in: rootURL
+        )
+        let body = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return GitDiffSnapshot(
+            title: id,
             body: body.isEmpty ? "No diff available." : body,
             isEmpty: body.isEmpty
         )

@@ -40,7 +40,7 @@ extension GitRepositoryClient {
 
     func createTag(name: String, message: String?, in path: String) throws {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { throw GitRepositoryError.invalidBranchName }
+        guard !trimmed.isEmpty else { throw GitRepositoryError.invalidTagName }
         let root = try repositoryRootURL(for: path)
         if let message, !message.isEmpty {
             _ = try runGit(["tag", "-a", trimmed, "-m", message], in: root)
