@@ -60,6 +60,7 @@ private struct RebasePane: View {
                 .font(AinkradFont.display(12))
 
             Button("Rebase") { model.requestRebase() }
+                .font(AinkradFont.display(12, weight: .medium))
                 .buttonStyle(.borderedProminent)
                 .disabled(model.isLoading || model.rebaseBase == nil || model.rebaseBase?.isEmpty == true)
 
@@ -102,6 +103,7 @@ private struct CherryPickRevertPane: View {
                     }
                 }
             }
+            .font(AinkradFont.display(12, weight: .medium))
             .buttonStyle(.borderedProminent)
             .disabled(model.isLoading || model.selectedCommit == nil)
         }
@@ -134,6 +136,7 @@ private struct ResetPane: View {
                 .font(AinkradFont.display(12))
 
             Button("Reset") { model.requestReset() }
+                .font(AinkradFont.display(12, weight: .medium))
                 .buttonStyle(.borderedProminent)
                 .disabled(model.isLoading || model.selectedCommit == nil)
         }
@@ -242,10 +245,11 @@ private struct TagsPane: View {
                 .font(AinkradFont.display(9, weight: .semibold))
                 .foregroundStyle(tokens.foreground.opacity(0.45))
             TextField("Tag name", text: $model.newTagName)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.roundedBorder).font(AinkradFont.display(12))
             TextField("Message (optional)", text: $model.newTagMessage)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.roundedBorder).font(AinkradFont.display(12))
             Button("Create") { Task { await model.createTag() } }
+                .font(AinkradFont.display(12, weight: .medium))
                 .buttonStyle(.borderedProminent)
                 .disabled(model.isLoading || model.newTagName.trimmingCharacters(in: .whitespaces).isEmpty)
         }

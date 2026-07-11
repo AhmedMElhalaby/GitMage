@@ -56,7 +56,7 @@ final class IssuesViewModelTests: XCTestCase {
 
         XCTAssertEqual(provider.createIssueCalls.count, 1)
         XCTAssertEqual(provider.createIssueCalls.first?.title, "New issue")
-        XCTAssertEqual(provider.listIssuesCallCount, 1)
+        XCTAssertEqual(provider.searchIssuesCallCount, 1)
         XCTAssertFalse(vm.showNew)
         XCTAssertEqual(vm.newTitle, "")
     }
@@ -83,7 +83,7 @@ final class IssuesViewModelTests: XCTestCase {
         await vm.load()
 
         XCTAssertEqual(vm.issues.count, 0)
-        XCTAssertEqual(provider.listIssuesCallCount, 0)
+        XCTAssertEqual(provider.searchIssuesCallCount, 0)
     }
 }
 
@@ -107,6 +107,7 @@ private final class StubIssueForgeProvider: GitForgeProvider {
     var listIssuesError: ForgeError?
 
     var listIssuesCallCount = 0
+    var searchIssuesCallCount = 0
     var issueCallCount = 0
     var createIssueCalls: [(title: String, body: String, labels: [String], assignees: [String])] = []
     var addIssueCommentCalls: [String] = []
@@ -120,8 +121,12 @@ private final class StubIssueForgeProvider: GitForgeProvider {
     }
 
     func listPullRequests(_ repo: RepoRef, state: PRState) async throws -> [PullRequestSummary] { [] }
+    func searchPullRequests(_ repo: RepoRef, state: PRState, query: String, labels: [String], page: Int) async throws -> ForgePage<PullRequestSummary> {
+        ForgePage(items: [], totalCount: 0)
+    }
     func pullRequest(_ repo: RepoRef, number: Int) async throws -> PullRequestDetail { throw ForgeError.notFound }
     func files(_ repo: RepoRef, number: Int) async throws -> [PRFile] { [] }
+    func pullRequestCommits(_ repo: RepoRef, number: Int) async throws -> [PRCommit] { [] }
     func comments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment] { [] }
     func checks(_ repo: RepoRef, ref: String) async throws -> [CheckRun] { [] }
     func addComment(_ repo: RepoRef, number: Int, body: String) async throws {}
@@ -132,6 +137,12 @@ private final class StubIssueForgeProvider: GitForgeProvider {
         listIssuesCallCount += 1
         if let listIssuesError { throw listIssuesError }
         return summaries
+    }
+
+    func searchIssues(_ repo: RepoRef, state: IssueState, query: String, labels: [String], page: Int) async throws -> ForgePage<IssueSummary> {
+        searchIssuesCallCount += 1
+        if let listIssuesError { throw listIssuesError }
+        return ForgePage(items: summaries, totalCount: summaries.count)
     }
 
     func issue(_ repo: RepoRef, number: Int) async throws -> IssueDetail {

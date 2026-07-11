@@ -43,53 +43,65 @@ struct PullRequestsContextPane: View {
     }
 
     private func gateMessage(_ text: String) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: "arrow.triangle.pull")
-                .font(.system(size: 28, weight: .light))
-                .foregroundStyle(tokens.accentPrimary.opacity(0.5))
-            Text(text)
-                .font(AinkradFont.display(12))
-                .foregroundStyle(tokens.foreground.opacity(0.6))
-                .multilineTextAlignment(.center)
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        EmptyStateView(icon: "arrow.triangle.pull", title: "Pull Requests", message: text, tokens: tokens)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var countText: String {
+        model.totalCount > 0 ? "\(model.pullRequests.count) / \(model.totalCount)" : "\(model.pullRequests.count)"
     }
 
     private var filterBar: some View {
-        Picker("", selection: $model.filter) {
-            Text("Open").tag(PRState.open)
-            Text("Closed").tag(PRState.closed)
+        VStack(spacing: 8) {
+            PaneHeader(title: "PULL REQUESTS", count: model.pullRequests.count, countText: countText, tokens: tokens)
+            HUDFilter(
+                options: [("Open", PRState.open), ("Closed", PRState.closed)],
+                selection: $model.filter, tokens: tokens,
+                onChange: { Task { await model.load() } }
+            )
+            .padding(.horizontal, 12)
+            HUDSearchField(text: $model.searchText, placeholder: "Search pull requests…",
+                           tokens: tokens, onSubmit: { Task { await model.load() } })
+                .padding(.horizontal, 12)
+            if !model.availableLabels.isEmpty {
+                LabelFilterBar(labels: model.availableLabels, selected: model.selectedLabels,
+                               tokens: tokens, onToggle: model.toggleLabel)
+                    .padding(.horizontal, 12)
+            }
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .padding(12)
-        .onChange(of: model.filter) { _, _ in
-            Task { await model.load() }
-        }
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder private var list: some View {
         if model.isLoading {
-            ProgressView().controlSize(.small)
+            GMSpinner(tint: tokens.accentSecondary, size: 22)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let errorMessage = model.errorMessage {
             gateMessage(errorMessage)
         } else if model.pullRequests.isEmpty {
-            gateMessage("No pull requests.")
+            EmptyStateView(icon: "arrow.triangle.pull", title: "No pull requests",
+                           message: "Nothing matches this filter.", tokens: tokens)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(model.pullRequests) { pr in
+                LazyVStack(alignment: .leading, spacing: 3) {
+                    ForEach(Array(model.pullRequests.enumerated()), id: \.element.id) { index, pr in
                         PullRequestRow(
                             pr: pr,
                             tokens: tokens,
                             isSelected: model.selectedPRNumber == pr.number,
                             onSelect: { Task { await model.select(pr.number) } }
                         )
+                        .onAppear {
+                            if index == model.pullRequests.count - 1 { Task { await model.loadMore() } }
+                        }
+                    }
+                    if model.isLoadingMore {
+                        HStack { Spacer(); GMSpinner(tint: tokens.accentSecondary, size: 16); Spacer() }
+                            .padding(.vertical, 12)
                     }
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 12).padding(.bottom, 12)
             }
         }
     }
@@ -102,40 +114,49 @@ private struct PullRequestRow: View {
     let onSelect: () -> Void
     @State private var hovering = false
 
+    private var isOpen: Bool { pr.state.lowercased() == "open" }
+
     var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: 8) {
-                Image(systemName: "arrow.triangle.pull")
-                    .font(.system(size: 11))
-                    .foregroundStyle(tokens.accentPrimary.opacity(0.7))
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 6) {
-                        Text("#\(pr.number)  \(pr.title)")
-                            .font(AinkradFont.display(12, weight: .medium))
-                            .lineLimit(1)
-                        if pr.isDraft {
-                            Text("Draft")
-                                .font(AinkradFont.display(9, weight: .semibold))
-                                .foregroundStyle(tokens.foreground.opacity(0.55))
-                                .padding(.horizontal, 5).padding(.vertical, 1)
-                                .background(tokens.surfaceElevated.opacity(0.7), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
-                        }
-                    }
+        HStack(spacing: 10) {
+            Image(systemName: "arrow.triangle.pull")
+                .font(.system(size: 12))
+                .foregroundStyle(isOpen ? GMColor.status(.open, tokens) : GMColor.status(.closedMerged, tokens))
+                .frame(width: 16)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(pr.title)
+                    .font(AinkradFont.display(12))
+                    .foregroundStyle(tokens.foreground.opacity(isSelected ? 1 : 0.9))
+                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text("#\(pr.number)")
+                        .font(AinkradFont.mono(9, weight: .medium))
+                        .foregroundStyle(tokens.accentSecondary)
                     Text(pr.author)
                         .font(AinkradFont.mono(9))
-                        .foregroundStyle(tokens.foreground.opacity(0.5))
+                        .foregroundStyle(tokens.foreground.opacity(0.5)).lineLimit(1)
                 }
-                Spacer()
             }
-            .padding(.horizontal, 8).padding(.vertical, 6)
-            .background(
-                isSelected ? tokens.accentPrimary.opacity(0.13) : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear),
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-            )
-            .contentShape(Rectangle())
+            Spacer(minLength: 4)
+            if pr.isDraft {
+                StatusPill(text: "Draft", kind: .neutral, tokens: tokens)
+            }
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 9).padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(isSelected ? tokens.accentPrimary.opacity(0.13)
+                      : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
+        )
+        .overlay(alignment: .leading) {
+            Capsule().fill(tokens.accentPrimary).frame(width: 3, height: 18)
+                .shadow(color: tokens.accentPrimary.opacity(0.8), radius: 4).padding(.leading, 1)
+                .opacity(isSelected ? 1 : 0)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onSelect)
         .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.14), value: hovering)
+        .animation(.easeOut(duration: 0.12), value: hovering)
+        .animation(.easeOut(duration: 0.14), value: isSelected)
     }
 }

@@ -33,5 +33,7 @@ enum NavArea: String, CaseIterable, Identifiable {
         }
     }
 
-    static var built: [NavArea] { [.changes, .history, .branches, .stashes, .pullRequests, .worktrees, .issues, .advanced] }
+    /// Branches has no rail entry — branch management lives in the top-bar
+    /// overlay; this slot is reserved for a future graph view.
+    static var built: [NavArea] { [.changes, .history, .stashes, .pullRequests, .worktrees, .issues, .advanced] }
 }

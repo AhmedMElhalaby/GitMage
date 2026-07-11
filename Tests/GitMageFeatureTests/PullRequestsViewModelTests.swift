@@ -11,7 +11,7 @@ final class PullRequestsViewModelTests: XCTestCase {
     }
 
     private func makeDetail(number: Int = 7) -> PullRequestDetail {
-        PullRequestDetail(number: number, title: "Fix", body: "body", state: "open", isDraft: false, mergeable: true, mergeableState: "clean", additions: 1, deletions: 0, headBranch: "feat", baseBranch: "main")
+        PullRequestDetail(number: number, title: "Fix", body: "body", state: "open", isDraft: false, author: "alice", createdAt: "2026-07-01T00:00:00Z", mergeable: true, mergeableState: "clean", additions: 1, deletions: 0, headBranch: "feat", baseBranch: "main")
     }
 
     func testLoadPopulatesPullRequestsFromProvider() async {
@@ -132,6 +132,11 @@ private final class StubForgeProvider: GitForgeProvider {
         return summaries
     }
 
+    func searchPullRequests(_ repo: RepoRef, state: PRState, query: String, labels: [String], page: Int) async throws -> ForgePage<PullRequestSummary> {
+        if let listPullRequestsError { throw listPullRequestsError }
+        return ForgePage(items: summaries, totalCount: summaries.count)
+    }
+
     func pullRequest(_ repo: RepoRef, number: Int) async throws -> PullRequestDetail {
         pullRequestCallCount += 1
         guard let detail else { throw ForgeError.notFound }
@@ -141,6 +146,8 @@ private final class StubForgeProvider: GitForgeProvider {
     func files(_ repo: RepoRef, number: Int) async throws -> [PRFile] {
         prFiles
     }
+
+    func pullRequestCommits(_ repo: RepoRef, number: Int) async throws -> [PRCommit] { [] }
 
     func comments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment] {
         prComments
@@ -164,6 +171,9 @@ private final class StubForgeProvider: GitForgeProvider {
     }
 
     func listIssues(_ repo: RepoRef, state: IssueState) async throws -> [IssueSummary] { [] }
+    func searchIssues(_ repo: RepoRef, state: IssueState, query: String, labels: [String], page: Int) async throws -> ForgePage<IssueSummary> {
+        ForgePage(items: [], totalCount: 0)
+    }
     func issue(_ repo: RepoRef, number: Int) async throws -> IssueDetail { throw ForgeError.notFound }
     func issueComments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment] { [] }
     func repoLabels(_ repo: RepoRef) async throws -> [IssueLabel] { [] }

@@ -28,8 +28,11 @@ enum ForgeError: Error, LocalizedError, Equatable {
 protocol GitForgeProvider {
     func verify() async throws -> ForgeUser
     func listPullRequests(_ repo: RepoRef, state: PRState) async throws -> [PullRequestSummary]
+    /// Paginated PR search (text + labels) via the forge search API.
+    func searchPullRequests(_ repo: RepoRef, state: PRState, query: String, labels: [String], page: Int) async throws -> ForgePage<PullRequestSummary>
     func pullRequest(_ repo: RepoRef, number: Int) async throws -> PullRequestDetail
     func files(_ repo: RepoRef, number: Int) async throws -> [PRFile]
+    func pullRequestCommits(_ repo: RepoRef, number: Int) async throws -> [PRCommit]
     func comments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment]
     func checks(_ repo: RepoRef, ref: String) async throws -> [CheckRun]
     func addComment(_ repo: RepoRef, number: Int, body: String) async throws
@@ -37,6 +40,8 @@ protocol GitForgeProvider {
     func merge(_ repo: RepoRef, number: Int, method: MergeMethod) async throws
 
     func listIssues(_ repo: RepoRef, state: IssueState) async throws -> [IssueSummary]
+    /// Paginated issue search (text + labels) via the forge search API.
+    func searchIssues(_ repo: RepoRef, state: IssueState, query: String, labels: [String], page: Int) async throws -> ForgePage<IssueSummary>
     func issue(_ repo: RepoRef, number: Int) async throws -> IssueDetail
     func issueComments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment]
     func repoLabels(_ repo: RepoRef) async throws -> [IssueLabel]

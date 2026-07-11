@@ -16,6 +16,7 @@ struct GMButton: View {
     private let title: String
     private let kind: GMButtonKind
     private let systemImage: String?
+    private let tooltip: String?
     private let tokens: HostThemeTokens
     private let action: () -> Void
 
@@ -26,12 +27,14 @@ struct GMButton: View {
         _ title: String,
         kind: GMButtonKind = .secondary,
         systemImage: String? = nil,
+        tooltip: String? = nil,
         tokens: HostThemeTokens,
         action: @escaping () -> Void
     ) {
         self.title = title
         self.kind = kind
         self.systemImage = systemImage
+        self.tooltip = tooltip
         self.tokens = tokens
         self.action = action
     }
@@ -48,20 +51,14 @@ struct GMButton: View {
             }
             .foregroundStyle(labelColor)
             .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(fillColor)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(borderColor, lineWidth: 1)
-            )
+            .padding(.vertical, 7)
+            .hudButtonSurface(tokens: tokens, kind: hudKind, hovering: isHovering)
             .contentShape(Rectangle())
-            .opacity(isPressed ? 0.75 : 1.0)
+            .opacity(isPressed ? 0.8 : 1.0)
             .scaleEffect(isPressed ? 0.98 : 1.0)
         }
         .buttonStyle(.plain)
+        .hudTooltip(tooltip ?? "", edge: .bottom, active: isHovering)
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.14)) {
                 isHovering = hovering
@@ -75,6 +72,17 @@ struct GMButton: View {
         .animation(.easeOut(duration: 0.14), value: isHovering)
     }
 
+    /// Maps the semantic kind onto the shared HUD button surface used across
+    /// the top bar, so every GMButton reads as one family.
+    private var hudKind: HUDButtonKind {
+        switch kind {
+        case .primary: return .primary
+        case .secondary: return .secondary
+        case .subtle: return .chip
+        case .destructive: return .destructive
+        }
+    }
+
     private var labelColor: Color {
         switch kind {
         case .primary:
@@ -85,32 +93,6 @@ struct GMButton: View {
             return tokens.foreground.opacity(isHovering ? 0.85 : 0.65)
         case .destructive:
             return tokens.accentTertiary
-        }
-    }
-
-    private var fillColor: Color {
-        switch kind {
-        case .primary:
-            return tokens.accentPrimary.opacity(isHovering ? 1.0 : 0.9)
-        case .secondary:
-            return tokens.surfaceElevated.opacity(isHovering ? 0.7 : 0.5)
-        case .subtle:
-            return isHovering ? tokens.surfaceElevated.opacity(0.35) : .clear
-        case .destructive:
-            return tokens.accentTertiary.opacity(isHovering ? 0.22 : 0.12)
-        }
-    }
-
-    private var borderColor: Color {
-        switch kind {
-        case .primary:
-            return tokens.accentPrimary.opacity(0.4)
-        case .secondary:
-            return tokens.accentPrimary.opacity(0.2)
-        case .subtle:
-            return .clear
-        case .destructive:
-            return tokens.accentTertiary.opacity(0.4)
         }
     }
 }

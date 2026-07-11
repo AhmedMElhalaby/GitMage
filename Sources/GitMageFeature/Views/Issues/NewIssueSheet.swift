@@ -16,6 +16,7 @@ struct NewIssueSheet: View {
 
             TextField("Title", text: $model.newTitle)
                 .textFieldStyle(.roundedBorder)
+                .font(AinkradFont.display(12))
 
             TextEditor(text: $model.newBody)
                 .font(AinkradFont.display(12))
@@ -31,8 +32,9 @@ struct NewIssueSheet: View {
 
             HStack {
                 Spacer()
-                Button("Cancel") { model.showNew = false }
+                Button("Cancel") { model.showNew = false }.font(AinkradFont.display(12))
                 Button("Create") { Task { await model.create() } }
+                    .font(AinkradFont.display(12, weight: .medium))
                     .buttonStyle(.borderedProminent)
                     .disabled(!canCreate || model.isLoading)
             }

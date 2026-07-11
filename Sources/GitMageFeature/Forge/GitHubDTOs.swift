@@ -24,6 +24,7 @@ struct GHPull: Codable {
     let state: String
     let draft: Bool?
     let user: GHUser
+    let createdAt: String?
     let head: GHRef
     let base: GHRef
     let mergeable: Bool?
@@ -51,12 +52,40 @@ struct GHPull: Codable {
             body: body ?? "",
             state: state,
             isDraft: draft ?? false,
+            author: user.login,
+            createdAt: createdAt ?? "",
             mergeable: mergeable,
             mergeableState: mergeableState ?? "unknown",
             additions: additions ?? 0,
             deletions: deletions ?? 0,
             headBranch: head.ref,
             baseBranch: base.ref
+        )
+    }
+}
+
+struct GHPRCommit: Codable {
+    let sha: String
+    let commit: CommitInfo
+    let author: GHUser?
+
+    struct CommitInfo: Codable {
+        let message: String
+        let author: CommitAuthor
+    }
+    struct CommitAuthor: Codable {
+        let name: String
+        let date: String
+    }
+
+    func toModel() -> PRCommit {
+        let firstLine = commit.message.split(separator: "\n").first.map(String.init) ?? commit.message
+        return PRCommit(
+            sha: sha,
+            shortSHA: String(sha.prefix(7)),
+            message: firstLine,
+            author: author?.login ?? commit.author.name,
+            date: commit.author.date
         )
     }
 }
@@ -108,6 +137,12 @@ struct GHLabel: Codable {
 
 struct GHPullRequestMarker: Codable {}   // presence indicates the "issue" is actually a PR
 
+/// Envelope returned by `GET /search/issues` (total_count → totalCount).
+struct GHSearchEnvelope: Codable {
+    let totalCount: Int
+    let items: [GHIssue]
+}
+
 struct GHIssue: Codable {
     let number: Int
     let title: String
@@ -117,6 +152,7 @@ struct GHIssue: Codable {
     let labels: [GHLabel]
     let assignees: [GHUser]
     let comments: Int
+    let draft: Bool?                        // present on PR items from the search API
     let pullRequest: GHPullRequestMarker?   // JSON "pull_request" via convertFromSnakeCase
 
     var isPullRequest: Bool { pullRequest != nil }
@@ -124,6 +160,13 @@ struct GHIssue: Codable {
     func toSummary() -> IssueSummary {
         IssueSummary(id: number, number: number, title: title, author: user.login,
                      state: state, labelNames: labels.map { $0.name }, commentCount: comments)
+    }
+
+    /// Maps a search-API PR item to a list summary. Head/base branches are not
+    /// returned by search — the detail fetch on select fills them in.
+    func toPRSummary() -> PullRequestSummary {
+        PullRequestSummary(id: number, number: number, title: title, author: user.login,
+                           state: state, isDraft: draft ?? false, headBranch: "", baseBranch: "")
     }
 
     func toDetail() -> IssueDetail {

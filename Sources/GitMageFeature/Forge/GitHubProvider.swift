@@ -17,11 +17,18 @@ final class GitHubProvider: GitForgeProvider {
     func listPullRequests(_ repo: RepoRef, state: PRState) async throws -> [PullRequestSummary] {
         try await get("/repos/\(repo.owner)/\(repo.name)/pulls?state=\(state.rawValue)&per_page=50", as: [GHPull].self).map { $0.toSummary() }
     }
+    func searchPullRequests(_ repo: RepoRef, state: PRState, query: String, labels: [String], page: Int) async throws -> ForgePage<PullRequestSummary> {
+        let env = try await searchIssuesRaw(repo, isPR: true, state: state.rawValue, query: query, labels: labels, page: page)
+        return ForgePage(items: env.items.map { $0.toPRSummary() }, totalCount: env.totalCount)
+    }
     func pullRequest(_ repo: RepoRef, number: Int) async throws -> PullRequestDetail {
         try await get("/repos/\(repo.owner)/\(repo.name)/pulls/\(number)", as: GHPull.self).toDetail()
     }
     func files(_ repo: RepoRef, number: Int) async throws -> [PRFile] {
-        try await get("/repos/\(repo.owner)/\(repo.name)/pulls/\(number)/files?per_page=50", as: [GHFile].self).map { $0.toModel() }
+        try await get("/repos/\(repo.owner)/\(repo.name)/pulls/\(number)/files?per_page=100", as: [GHFile].self).map { $0.toModel() }
+    }
+    func pullRequestCommits(_ repo: RepoRef, number: Int) async throws -> [PRCommit] {
+        try await get("/repos/\(repo.owner)/\(repo.name)/pulls/\(number)/commits?per_page=100", as: [GHPRCommit].self).map { $0.toModel() }
     }
     func comments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment] {
         try await get("/repos/\(repo.owner)/\(repo.name)/issues/\(number)/comments?per_page=50", as: [GHComment].self).map { $0.toModel() }
@@ -43,6 +50,28 @@ final class GitHubProvider: GitForgeProvider {
     func listIssues(_ repo: RepoRef, state: IssueState) async throws -> [IssueSummary] {
         let items = try await get("/repos/\(repo.owner)/\(repo.name)/issues?state=\(state.rawValue)&per_page=50", as: [GHIssue].self)
         return items.filter { !$0.isPullRequest }.map { $0.toSummary() }
+    }
+    func searchIssues(_ repo: RepoRef, state: IssueState, query: String, labels: [String], page: Int) async throws -> ForgePage<IssueSummary> {
+        let env = try await searchIssuesRaw(repo, isPR: false, state: state.rawValue, query: query, labels: labels, page: page)
+        return ForgePage(items: env.items.map { $0.toSummary() }, totalCount: env.totalCount)
+    }
+
+    /// Shared `GET /search/issues` builder for both PRs and issues.
+    static let searchPageSize = 30
+    private static let searchQueryAllowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+
+    private func searchIssuesRaw(_ repo: RepoRef, isPR: Bool, state: String,
+                                 query: String, labels: [String], page: Int) async throws -> GHSearchEnvelope {
+        var qualifiers = ["repo:\(repo.owner)/\(repo.name)", isPR ? "is:pr" : "is:issue"]
+        if state == "open" || state == "closed" { qualifiers.append("state:\(state)") }
+        for label in labels where !label.isEmpty { qualifiers.append("label:\"\(label)\"") }
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.isEmpty { qualifiers.append(text) }
+
+        let q = qualifiers.joined(separator: " ")
+        let encoded = q.addingPercentEncoding(withAllowedCharacters: Self.searchQueryAllowed) ?? q
+        let path = "/search/issues?q=\(encoded)&per_page=\(Self.searchPageSize)&page=\(max(1, page))&sort=created&order=desc"
+        return try await get(path, as: GHSearchEnvelope.self)
     }
     func issue(_ repo: RepoRef, number: Int) async throws -> IssueDetail {
         try await get("/repos/\(repo.owner)/\(repo.name)/issues/\(number)", as: GHIssue.self).toDetail()

@@ -81,6 +81,17 @@ actor GitRepositoryClient {
         _ = try runGit(["add", "-A"], in: rootURL)
     }
 
+    /// Unstages every staged change. Before the first commit there is no HEAD to
+    /// reset against, so the whole index is cleared instead.
+    func unstageAllChanges(in path: String) throws {
+        let rootURL = try repositoryRootURL(for: path)
+        if try hasHead(in: rootURL) {
+            _ = try runGit(["reset"], in: rootURL)
+        } else {
+            _ = try runGit(["rm", "-r", "--cached", "."], in: rootURL)
+        }
+    }
+
     func stage(change: GitChange, in path: String) throws {
         let rootURL = try repositoryRootURL(for: path)
         if change.kind == .renamed, let sourcePath = change.sourcePath {
@@ -281,11 +292,21 @@ actor GitRepositoryClient {
         )
     }
 
-    func loadLog(limit: Int, in path: String) throws -> [GitCommitSummary] {
+    /// Total number of commits reachable from HEAD (0 before the first commit).
+    func commitCount(in path: String) throws -> Int {
+        let rootURL = try repositoryRootURL(for: path)
+        guard try hasHead(in: rootURL) else { return 0 }
+        let output = try runGit(["rev-list", "--count", "HEAD"], in: rootURL)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return Int(output) ?? 0
+    }
+
+    func loadLog(skip: Int = 0, limit: Int, in path: String) throws -> [GitCommitSummary] {
         let rootURL = try repositoryRootURL(for: path)
         guard try hasHead(in: rootURL) else { return [] }
         let output = try runGit([
             "log",
+            "--skip=\(max(0, skip))",
             "--max-count=\(max(1, limit))",
             "--pretty=format:%H%x09%h%x09%s%x09%an%x09%ar"
         ], in: rootURL)

@@ -14,7 +14,7 @@ struct SettingsSectionHeader: View {
                 .frame(width: 3, height: 12)
                 .shadow(color: tokens.accentSecondary.opacity(0.8), radius: 4)
             Text(title)
-                .font(AinkradFont.display(11, weight: .semibold))
+                .font(AinkradFont.fixedDisplay(11, weight: .semibold))
                 .kerning(3)
                 .foregroundStyle(tokens.foreground.opacity(0.55))
         }

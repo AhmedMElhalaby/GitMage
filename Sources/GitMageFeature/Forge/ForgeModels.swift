@@ -1,5 +1,17 @@
 import Foundation
 
+/// Formats GitHub ISO-8601 timestamps for display (e.g. "Jul 1, 2026").
+enum ForgeDate {
+    static func short(_ isoString: String) -> String {
+        guard !isoString.isEmpty else { return "" }
+        let iso = ISO8601DateFormatter()
+        guard let date = iso.date(from: isoString) else { return isoString }
+        let out = DateFormatter()
+        out.dateFormat = "MMM d, yyyy"
+        return out.string(from: date)
+    }
+}
+
 /// Identifies a forge (e.g. GitHub) repository by host/owner/name, parsed from
 /// a git remote URL. Used to gate forge-backed features (like Pull Requests)
 /// to repositories with a recognized origin remote.
@@ -31,6 +43,13 @@ struct ForgeUser: Equatable {
     let login: String
 }
 
+/// One page of a forge search: the items plus the total match count, so the
+/// UI can show "loaded / total" and know whether more pages remain.
+struct ForgePage<Item> {
+    let items: [Item]
+    let totalCount: Int
+}
+
 struct PullRequestSummary: Identifiable, Equatable {
     let id: Int
     let number: Int
@@ -48,12 +67,24 @@ struct PullRequestDetail: Equatable {
     let body: String
     let state: String
     let isDraft: Bool
+    let author: String
+    let createdAt: String
     let mergeable: Bool?
     let mergeableState: String
     let additions: Int
     let deletions: Int
     let headBranch: String
     let baseBranch: String
+}
+
+/// One commit on a pull request.
+struct PRCommit: Identifiable, Equatable {
+    let sha: String
+    let shortSHA: String
+    let message: String   // first line of the commit message
+    let author: String
+    let date: String
+    var id: String { sha }
 }
 
 struct ForgeComment: Identifiable, Equatable {

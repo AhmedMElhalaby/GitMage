@@ -14,39 +14,30 @@ struct WorktreesContextPane: View {
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
-            Text("Worktrees")
-                .font(AinkradFont.display(13, weight: .semibold))
-                .foregroundStyle(tokens.foreground.opacity(0.85))
-            Spacer()
-            headerButton("Add…", systemImage: "plus") { model.showAdd = true }
-            headerButton("Prune", systemImage: "sparkles") { Task { await model.prune() } }
+        PaneHeader(title: "WORKTREES", count: model.worktrees.count, tokens: tokens) {
+            HStack(spacing: 6) {
+                RowIconButton(symbol: "plus", help: "Add worktree", tokens: tokens) { model.showAdd = true }
+                RowIconButton(symbol: "sparkles", help: "Prune stale worktrees", tokens: tokens) {
+                    Task { await model.prune() }
+                }
+            }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-    }
-
-    private func headerButton(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .font(AinkradFont.display(11, weight: .medium))
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 8).padding(.vertical, 4)
-        .background(tokens.surfaceElevated.opacity(0.5), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
     }
 
     @ViewBuilder private var content: some View {
         if model.isLoading {
-            ProgressView().controlSize(.small)
+            GMSpinner(tint: tokens.accentSecondary, size: 22)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let errorMessage = model.errorMessage {
-            emptyState(text: errorMessage)
+            EmptyStateView(icon: "rectangle.split.3x1", title: "Worktrees", message: errorMessage, tokens: tokens)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if model.worktrees.isEmpty {
-            emptyState(text: "No worktrees.")
+            EmptyStateView(icon: "rectangle.split.3x1", title: "No worktrees",
+                           message: "Add a linked worktree to work on multiple branches at once.", tokens: tokens)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
                     ForEach(model.worktrees) { wt in
                         WorktreeRow(
                             worktree: wt,
@@ -68,23 +59,9 @@ struct WorktreesContextPane: View {
                         )
                     }
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 12).padding(.bottom, 12)
             }
         }
-    }
-
-    private func emptyState(text: String) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: "rectangle.split.3x1")
-                .font(.system(size: 28, weight: .light))
-                .foregroundStyle(tokens.accentPrimary.opacity(0.5))
-            Text(text)
-                .font(AinkradFont.display(12))
-                .foregroundStyle(tokens.foreground.opacity(0.6))
-                .multilineTextAlignment(.center)
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -104,28 +81,36 @@ private struct WorktreeRow: View {
     }
 
     var body: some View {
-        Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 4) {
-                topLine
-                Text(worktree.path)
-                    .font(AinkradFont.mono(9))
-                    .foregroundStyle(tokens.foreground.opacity(0.45))
-                    .lineLimit(1)
-                bottomLine
-                if hovering {
-                    actionsRow
-                }
-            }
-            .padding(.horizontal, 8).padding(.vertical, 8)
-            .background(
-                isSelected ? tokens.accentPrimary.opacity(0.13) : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear),
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-            )
-            .contentShape(Rectangle())
+        VStack(alignment: .leading, spacing: 4) {
+            topLine
+            Text(worktree.path)
+                .font(AinkradFont.mono(9))
+                .foregroundStyle(tokens.foreground.opacity(0.45))
+                .lineLimit(1).truncationMode(.middle)
+            bottomLine
+            actionsRow
+                .opacity(hovering ? 1 : 0)
+                .allowsHitTesting(hovering)
+                .frame(height: 22)
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 9).padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(isSelected ? tokens.accentPrimary.opacity(0.13)
+                      : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
+        )
+        .overlay(alignment: .leading) {
+            if isSelected {
+                Capsule().fill(tokens.accentPrimary).frame(width: 3, height: 20)
+                    .shadow(color: tokens.accentPrimary.opacity(0.8), radius: 4).padding(.leading, 1)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2, perform: onOpen)
+        .onTapGesture(perform: onSelect)
         .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.14), value: hovering)
+        .animation(.easeOut(duration: 0.12), value: hovering)
+        .animation(.easeOut(duration: 0.14), value: isSelected)
     }
 
     private var topLine: some View {
@@ -149,7 +134,7 @@ private struct WorktreeRow: View {
             if worktree.isPrunable {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 10))
-                    .foregroundStyle(.orange.opacity(0.8))
+                    .foregroundStyle(tokens.accentTertiary.opacity(0.9))
             }
         }
     }
@@ -161,21 +146,12 @@ private struct WorktreeRow: View {
     }
 
     private var actionsRow: some View {
-        HStack(spacing: 10) {
-            rowAction("Open", systemImage: "arrow.up.forward.square", action: onOpen)
-            rowAction(worktree.isLocked ? "Unlock" : "Lock", systemImage: worktree.isLocked ? "lock.open" : "lock", action: onToggleLock)
-            rowAction("Remove", systemImage: "trash", action: onRemove)
+        HStack(spacing: 4) {
+            RowIconButton(symbol: "arrow.up.forward.square", help: "Open", tokens: tokens, size: 20, action: onOpen)
+            RowIconButton(symbol: worktree.isLocked ? "lock.open" : "lock",
+                          help: worktree.isLocked ? "Unlock" : "Lock", tokens: tokens, size: 20, action: onToggleLock)
+            RowIconButton(symbol: "trash", help: "Remove", tokens: tokens, size: 20, action: onRemove)
             Spacer()
         }
-        .padding(.top, 2)
-    }
-
-    private func rowAction(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .font(AinkradFont.display(9, weight: .medium))
-                .foregroundStyle(tokens.foreground.opacity(0.65))
-        }
-        .buttonStyle(.plain)
     }
 }
