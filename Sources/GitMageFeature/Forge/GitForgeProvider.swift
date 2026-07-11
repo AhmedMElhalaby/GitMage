@@ -32,6 +32,7 @@ protocol GitForgeProvider {
     func searchPullRequests(_ repo: RepoRef, state: PRState, query: String, labels: [String], page: Int) async throws -> ForgePage<PullRequestSummary>
     func pullRequest(_ repo: RepoRef, number: Int) async throws -> PullRequestDetail
     func files(_ repo: RepoRef, number: Int) async throws -> [PRFile]
+    func pullRequestCommits(_ repo: RepoRef, number: Int) async throws -> [PRCommit]
     func comments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment]
     func checks(_ repo: RepoRef, ref: String) async throws -> [CheckRun]
     func addComment(_ repo: RepoRef, number: Int, body: String) async throws

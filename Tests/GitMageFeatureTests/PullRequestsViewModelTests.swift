@@ -11,7 +11,7 @@ final class PullRequestsViewModelTests: XCTestCase {
     }
 
     private func makeDetail(number: Int = 7) -> PullRequestDetail {
-        PullRequestDetail(number: number, title: "Fix", body: "body", state: "open", isDraft: false, mergeable: true, mergeableState: "clean", additions: 1, deletions: 0, headBranch: "feat", baseBranch: "main")
+        PullRequestDetail(number: number, title: "Fix", body: "body", state: "open", isDraft: false, author: "alice", createdAt: "2026-07-01T00:00:00Z", mergeable: true, mergeableState: "clean", additions: 1, deletions: 0, headBranch: "feat", baseBranch: "main")
     }
 
     func testLoadPopulatesPullRequestsFromProvider() async {
@@ -146,6 +146,8 @@ private final class StubForgeProvider: GitForgeProvider {
     func files(_ repo: RepoRef, number: Int) async throws -> [PRFile] {
         prFiles
     }
+
+    func pullRequestCommits(_ repo: RepoRef, number: Int) async throws -> [PRCommit] { [] }
 
     func comments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment] {
         prComments

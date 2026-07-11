@@ -10,6 +10,7 @@ final class PullRequestsViewModel: ObservableObject {
     @Published var selectedPRNumber: Int?
     @Published var detail: PullRequestDetail?
     @Published var files: [PRFile] = []
+    @Published var commits: [PRCommit] = []
     @Published var comments: [ForgeComment] = []
     @Published var checks: [CheckRun] = []
     @Published var filter: PRState = .open
@@ -117,6 +118,7 @@ final class PullRequestsViewModel: ObservableObject {
             let detail = try await provider.pullRequest(repo, number: number)
             self.detail = detail
             self.files = (try? await provider.files(repo, number: number)) ?? []
+            self.commits = (try? await provider.pullRequestCommits(repo, number: number)) ?? []
             self.comments = (try? await provider.comments(repo, number: number)) ?? []
             self.checks = (try? await provider.checks(repo, ref: detail.headBranch)) ?? []
         } catch let error as ForgeError {

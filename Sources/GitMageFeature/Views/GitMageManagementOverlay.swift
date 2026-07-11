@@ -72,18 +72,6 @@ private extension View {
     }
 }
 
-/// Horizontal glow rule used to separate header/footer bands (matches host).
-private struct GlowRule: View {
-    let tokens: HostThemeTokens
-    var body: some View {
-        LinearGradient(
-            colors: [.clear, tokens.accentPrimary.opacity(0.5), .clear],
-            startPoint: .leading, endPoint: .trailing
-        )
-        .frame(height: 1)
-    }
-}
-
 /// The brand chevron mark, drawn locally so the plugin can glow/tint it.
 private struct GMChevronMark: Shape {
     func path(in rect: CGRect) -> Path {

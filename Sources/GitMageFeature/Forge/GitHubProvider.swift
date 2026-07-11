@@ -25,7 +25,10 @@ final class GitHubProvider: GitForgeProvider {
         try await get("/repos/\(repo.owner)/\(repo.name)/pulls/\(number)", as: GHPull.self).toDetail()
     }
     func files(_ repo: RepoRef, number: Int) async throws -> [PRFile] {
-        try await get("/repos/\(repo.owner)/\(repo.name)/pulls/\(number)/files?per_page=50", as: [GHFile].self).map { $0.toModel() }
+        try await get("/repos/\(repo.owner)/\(repo.name)/pulls/\(number)/files?per_page=100", as: [GHFile].self).map { $0.toModel() }
+    }
+    func pullRequestCommits(_ repo: RepoRef, number: Int) async throws -> [PRCommit] {
+        try await get("/repos/\(repo.owner)/\(repo.name)/pulls/\(number)/commits?per_page=100", as: [GHPRCommit].self).map { $0.toModel() }
     }
     func comments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment] {
         try await get("/repos/\(repo.owner)/\(repo.name)/issues/\(number)/comments?per_page=50", as: [GHComment].self).map { $0.toModel() }

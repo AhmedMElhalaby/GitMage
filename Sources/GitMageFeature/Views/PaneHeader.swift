@@ -75,6 +75,50 @@ struct HUDFilter<Tag: Hashable>: View {
     }
 }
 
+/// Horizontal accent glow rule — the soft separator used across surfaces.
+struct GlowRule: View {
+    let tokens: HostThemeTokens
+    var body: some View {
+        LinearGradient(
+            colors: [.clear, tokens.accentPrimary.opacity(0.4), .clear],
+            startPoint: .leading, endPoint: .trailing
+        )
+        .frame(height: 1)
+    }
+}
+
+/// A HUD multiline text editor with a placeholder and a focus glow — shared by
+/// the commit box and the PR/issue comment composers.
+struct HUDTextEditor: View {
+    @Binding var text: String
+    var placeholder: String
+    let tokens: HostThemeTokens
+    var height: CGFloat = 70
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            TextEditor(text: $text)
+                .font(AinkradFont.display(12))
+                .scrollContentBackground(.hidden)
+                .focused($focused)
+                .frame(height: height)
+                .padding(7)
+            if text.isEmpty {
+                Text(placeholder)
+                    .font(AinkradFont.display(12))
+                    .foregroundStyle(tokens.foreground.opacity(0.35))
+                    .padding(.horizontal, 12).padding(.vertical, 15)
+                    .allowsHitTesting(false)
+            }
+        }
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(tokens.surfaceElevated.opacity(0.5)))
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .strokeBorder(tokens.accentPrimary.opacity(focused ? 0.6 : 0.2), lineWidth: focused ? 1.2 : 1))
+        .shadow(color: focused ? tokens.accentPrimary.opacity(0.25) : .clear, radius: 8)
+    }
+}
+
 /// A HUD search field: magnifier, plain field (searches on submit), clear button.
 struct HUDSearchField: View {
     @Binding var text: String

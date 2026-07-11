@@ -24,6 +24,7 @@ struct GHPull: Codable {
     let state: String
     let draft: Bool?
     let user: GHUser
+    let createdAt: String?
     let head: GHRef
     let base: GHRef
     let mergeable: Bool?
@@ -51,12 +52,40 @@ struct GHPull: Codable {
             body: body ?? "",
             state: state,
             isDraft: draft ?? false,
+            author: user.login,
+            createdAt: createdAt ?? "",
             mergeable: mergeable,
             mergeableState: mergeableState ?? "unknown",
             additions: additions ?? 0,
             deletions: deletions ?? 0,
             headBranch: head.ref,
             baseBranch: base.ref
+        )
+    }
+}
+
+struct GHPRCommit: Codable {
+    let sha: String
+    let commit: CommitInfo
+    let author: GHUser?
+
+    struct CommitInfo: Codable {
+        let message: String
+        let author: CommitAuthor
+    }
+    struct CommitAuthor: Codable {
+        let name: String
+        let date: String
+    }
+
+    func toModel() -> PRCommit {
+        let firstLine = commit.message.split(separator: "\n").first.map(String.init) ?? commit.message
+        return PRCommit(
+            sha: sha,
+            shortSHA: String(sha.prefix(7)),
+            message: firstLine,
+            author: author?.login ?? commit.author.name,
+            date: commit.author.date
         )
     }
 }

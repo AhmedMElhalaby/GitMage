@@ -5,6 +5,10 @@ struct DiffView: View {
     let diff: GitDiffSnapshot?
     let tokens: HostThemeTokens
     let fontSize: Double
+    /// Embedded mode (e.g. inside an expanded file row): no own vertical scroll
+    /// and no header — the diff flows in the parent's scroll.
+    var embedded: Bool = false
+    var showHeader: Bool = true
 
     private enum LineKind { case hunk, add, remove, context, meta }
     private struct Row: Identifiable {
@@ -16,34 +20,55 @@ struct DiffView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if let diff {
-                let rows = Self.parse(diff.body)
-                header(title: diff.title, rows: rows)
-                GlowRule(tokens: tokens)
-                if rows.contains(where: { $0.kind != .meta }) {
-                    ScrollView([.vertical, .horizontal]) {
-                        // Plain VStack (not Lazy): a LazyVStack in a bidirectional
-                        // ScrollView mis-estimates its height and leaves empty
-                        // vertical space below the content.
-                        VStack(alignment: .leading, spacing: 0) {
-                            ForEach(rows) { row($0) }
-                        }
-                        .padding(.vertical, 6)
-                        .textSelection(.enabled)
+        if let diff {
+            let rows = Self.parse(diff.body)
+            VStack(alignment: .leading, spacing: 0) {
+                if showHeader {
+                    header(title: diff.title, rows: rows)
+                    GlowRule(tokens: tokens)
+                }
+                content(rows)
+            }
+            .frame(maxWidth: .infinity, maxHeight: embedded ? nil : .infinity, alignment: .topLeading)
+        } else if !embedded {
+            EmptyStateView(icon: "doc.text.magnifyingglass", title: "No file selected",
+                           message: "Select a file, commit, or stash to inspect its diff.", tokens: tokens)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    @ViewBuilder private func content(_ rows: [Row]) -> some View {
+        if rows.contains(where: { $0.kind != .meta }) {
+            if embedded {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(rows) { row($0) }
                     }
-                } else {
-                    EmptyStateView(icon: "doc.text", title: "No textual changes",
-                                   message: "This change has no line-level diff to show.", tokens: tokens)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.vertical, 4)
+                    .textSelection(.enabled)
                 }
             } else {
-                EmptyStateView(icon: "doc.text.magnifyingglass", title: "No file selected",
-                               message: "Select a file, commit, or stash to inspect its diff.", tokens: tokens)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ScrollView([.vertical, .horizontal]) {
+                    // Plain VStack (not Lazy): a LazyVStack in a bidirectional
+                    // ScrollView mis-estimates its height and leaves empty
+                    // vertical space below the content.
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(rows) { row($0) }
+                    }
+                    .padding(.vertical, 6)
+                    .textSelection(.enabled)
+                }
             }
+        } else if !embedded {
+            EmptyStateView(icon: "doc.text", title: "No textual changes",
+                           message: "This change has no line-level diff to show.", tokens: tokens)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            Text("No textual changes.")
+                .font(AinkradFont.mono(10))
+                .foregroundStyle(tokens.foreground.opacity(0.4))
+                .padding(8)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func header(title: String, rows: [Row]) -> some View {
@@ -184,17 +209,5 @@ struct DiffView: View {
             }
         }
         return (oldStart, newStart)
-    }
-}
-
-/// Horizontal accent glow rule (shared look with the overlays / commit box).
-private struct GlowRule: View {
-    let tokens: HostThemeTokens
-    var body: some View {
-        LinearGradient(
-            colors: [.clear, tokens.accentPrimary.opacity(0.4), .clear],
-            startPoint: .leading, endPoint: .trailing
-        )
-        .frame(height: 1)
     }
 }

@@ -126,6 +126,7 @@ private final class StubIssueForgeProvider: GitForgeProvider {
     }
     func pullRequest(_ repo: RepoRef, number: Int) async throws -> PullRequestDetail { throw ForgeError.notFound }
     func files(_ repo: RepoRef, number: Int) async throws -> [PRFile] { [] }
+    func pullRequestCommits(_ repo: RepoRef, number: Int) async throws -> [PRCommit] { [] }
     func comments(_ repo: RepoRef, number: Int) async throws -> [ForgeComment] { [] }
     func checks(_ repo: RepoRef, ref: String) async throws -> [CheckRun] { [] }
     func addComment(_ repo: RepoRef, number: Int, body: String) async throws {}

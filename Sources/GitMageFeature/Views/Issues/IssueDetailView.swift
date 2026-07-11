@@ -17,10 +17,7 @@ struct IssueDetailView: View {
                         header(detail)
                         editors(detail)
                         if !detail.body.isEmpty {
-                            Text(detail.body)
-                                .font(AinkradFont.display(12))
-                                .foregroundStyle(tokens.foreground.opacity(0.85))
-                                .textSelection(.enabled)
+                            MarkdownText(markdown: detail.body, tokens: tokens)
                         }
                         ForEach(model.comments) { comment in
                             IssueCommentRow(comment: comment, tokens: tokens)
@@ -30,7 +27,9 @@ struct IssueDetailView: View {
                 }
                 composer(detail)
             } else {
-                placeholder
+                EmptyStateView(icon: "smallcircle.filled.circle", title: "No issue",
+                               message: "Select an issue to read and respond to it.", tokens: tokens)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -39,42 +38,23 @@ struct IssueDetailView: View {
         }
     }
 
-    private var placeholder: some View {
-        VStack {
-            Text("Select an issue.")
-                .font(AinkradFont.display(12))
-                .foregroundStyle(tokens.foreground.opacity(0.5))
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
     private func header(_ detail: IssueDetail) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 8) {
                 Text(detail.title)
                     .font(AinkradFont.display(16, weight: .semibold))
+                    .foregroundStyle(tokens.foreground)
                 Text("#\(detail.number)")
                     .font(AinkradFont.mono(12))
-                    .foregroundStyle(tokens.foreground.opacity(0.5))
-                statePill(detail.state)
+                    .foregroundStyle(tokens.accentSecondary)
                 Spacer()
+                StatusPill(text: detail.state.lowercased() == "open" ? "Open" : "Closed",
+                           kind: detail.state.lowercased() == "open" ? .open : .closedMerged, tokens: tokens)
             }
             Text(detail.author)
                 .font(AinkradFont.mono(11))
                 .foregroundStyle(tokens.foreground.opacity(0.55))
         }
-    }
-
-    private func statePill(_ state: String) -> some View {
-        let isOpen = state == "open"
-        return Text(isOpen ? "Open" : "Closed")
-            .font(AinkradFont.display(9, weight: .semibold))
-            .foregroundStyle(Color.white.opacity(0.9))
-            .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(
-                GMColor.status(isOpen ? .open : .closedMerged, tokens).opacity(0.85),
-                in: RoundedRectangle(cornerRadius: 5, style: .continuous)
-            )
     }
 
     private func editors(_ detail: IssueDetail) -> some View {
@@ -85,33 +65,29 @@ struct IssueDetailView: View {
     }
 
     private func composer(_ detail: IssueDetail) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            TextEditor(text: $composerText)
-                .font(AinkradFont.display(12))
-                .frame(height: 70)
-                .scrollContentBackground(.hidden)
-                .padding(6)
-                .background(tokens.surfaceElevated.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        VStack(alignment: .leading, spacing: 10) {
+            GlowRule(tokens: tokens)
+            HUDTextEditor(text: $composerText, placeholder: "Leave a comment…", tokens: tokens, height: 66)
             HStack(spacing: 8) {
-                actionButton("Comment", disabled: model.isLoading) { Task { await model.comment(composerText); composerText = "" } }
+                GMButton("Comment", kind: .secondary, systemImage: "text.bubble", tokens: tokens) {
+                    Task { await model.comment(composerText); composerText = "" }
+                }
+                .disabled(model.isLoading)
                 Spacer()
-                actionButton(detail.state == "open" ? "Close" : "Reopen", disabled: model.isLoading) {
-                    Task { await model.toggleState() }
+                if detail.state.lowercased() == "open" {
+                    GMButton("Close", kind: .destructive, systemImage: "xmark.circle", tokens: tokens) {
+                        Task { await model.toggleState() }
+                    }
+                    .disabled(model.isLoading)
+                } else {
+                    GMButton("Reopen", kind: .primary, systemImage: "arrow.counterclockwise", tokens: tokens) {
+                        Task { await model.toggleState() }
+                    }
+                    .disabled(model.isLoading)
                 }
             }
         }
         .padding(16)
-    }
-
-    private func actionButton(_ title: String, disabled: Bool = false, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title).font(AinkradFont.display(12, weight: .medium))
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(tokens.surfaceElevated.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(tokens.accentPrimary.opacity(0.2)))
-        .disabled(disabled)
     }
 }
 
@@ -128,10 +104,7 @@ private struct IssueCommentRow: View {
                     .font(AinkradFont.mono(9))
                     .foregroundStyle(tokens.foreground.opacity(0.45))
             }
-            Text(comment.body)
-                .font(AinkradFont.display(12))
-                .foregroundStyle(tokens.foreground.opacity(0.85))
-                .textSelection(.enabled)
+            MarkdownText(markdown: comment.body, tokens: tokens)
         }
         .padding(10)
         .background(tokens.surfaceElevated.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
