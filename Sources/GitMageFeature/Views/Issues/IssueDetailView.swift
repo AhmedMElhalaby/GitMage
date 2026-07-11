@@ -93,9 +93,9 @@ struct IssueDetailView: View {
                 .padding(6)
                 .background(tokens.surfaceElevated.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             HStack(spacing: 8) {
-                actionButton("Comment") { Task { await model.comment(composerText); composerText = "" } }
+                actionButton("Comment", disabled: model.isLoading) { Task { await model.comment(composerText); composerText = "" } }
                 Spacer()
-                actionButton(detail.state == "open" ? "Close" : "Reopen") {
+                actionButton(detail.state == "open" ? "Close" : "Reopen", disabled: model.isLoading) {
                     Task { await model.toggleState() }
                 }
             }
@@ -103,7 +103,7 @@ struct IssueDetailView: View {
         .padding(16)
     }
 
-    private func actionButton(_ title: String, action: @escaping () -> Void) -> some View {
+    private func actionButton(_ title: String, disabled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title).font(AinkradFont.display(12, weight: .medium))
         }
@@ -111,6 +111,7 @@ struct IssueDetailView: View {
         .padding(.horizontal, 10).padding(.vertical, 6)
         .background(tokens.surfaceElevated.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(tokens.accentPrimary.opacity(0.2)))
+        .disabled(disabled)
     }
 }
 
@@ -151,7 +152,11 @@ private struct LabelsEditor: View {
                     Button {
                         toggle(label.name)
                     } label: {
-                        Label(label.name, systemImage: detail.labels.contains { $0.name == label.name } ? "checkmark" : "")
+                        if detail.labels.contains(where: { $0.name == label.name }) {
+                            Label(label.name, systemImage: "checkmark")
+                        } else {
+                            Text(label.name)
+                        }
                     }
                 }
             } label: {
@@ -192,7 +197,11 @@ private struct AssigneesEditor: View {
                     Button {
                         toggle(user.login)
                     } label: {
-                        Label(user.login, systemImage: detail.assignees.contains(user.login) ? "checkmark" : "")
+                        if detail.assignees.contains(user.login) {
+                            Label(user.login, systemImage: "checkmark")
+                        } else {
+                            Text(user.login)
+                        }
                     }
                 }
             } label: {

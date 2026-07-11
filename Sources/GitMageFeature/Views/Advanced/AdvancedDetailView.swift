@@ -61,7 +61,7 @@ private struct RebasePane: View {
 
             Button("Rebase") { model.requestRebase() }
                 .buttonStyle(.borderedProminent)
-                .disabled(model.rebaseBase == nil || model.rebaseBase?.isEmpty == true)
+                .disabled(model.isLoading || model.rebaseBase == nil || model.rebaseBase?.isEmpty == true)
 
             Spacer()
         }
@@ -103,7 +103,7 @@ private struct CherryPickRevertPane: View {
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(model.selectedCommit == nil)
+            .disabled(model.isLoading || model.selectedCommit == nil)
         }
     }
 }
@@ -135,7 +135,7 @@ private struct ResetPane: View {
 
             Button("Reset") { model.requestReset() }
                 .buttonStyle(.borderedProminent)
-                .disabled(model.selectedCommit == nil)
+                .disabled(model.isLoading || model.selectedCommit == nil)
         }
     }
 }
@@ -247,7 +247,7 @@ private struct TagsPane: View {
                 .textFieldStyle(.roundedBorder)
             Button("Create") { Task { await model.createTag() } }
                 .buttonStyle(.borderedProminent)
-                .disabled(model.newTagName.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(model.isLoading || model.newTagName.trimmingCharacters(in: .whitespaces).isEmpty)
         }
     }
 }

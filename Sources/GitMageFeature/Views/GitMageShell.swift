@@ -118,9 +118,6 @@ struct GitMageShell: View {
         VStack(spacing: 10) {
             ForEach(NavArea.built) { area in navItem(area) }
             Spacer()
-            if !NavArea.reserved.isEmpty {
-                ForEach(NavArea.reserved) { area in navItem(area) }
-            }
         }
         .padding(.vertical, 14)
         .frame(width: 56)
@@ -133,12 +130,12 @@ struct GitMageShell: View {
         return Button { model.selectArea(area) } label: {
             Image(systemName: area.icon)
                 .font(.system(size: 16))
-                .foregroundStyle(isActive ? tokens.accentPrimary : tokens.foreground.opacity(area.isReserved ? 0.35 : 0.7))
+                .foregroundStyle(isActive ? tokens.accentPrimary : tokens.foreground.opacity(0.7))
                 .frame(width: 40, height: 34)
                 .background(isActive ? tokens.accentPrimary.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
-        .help(area.title + (area.isReserved ? " (coming soon)" : ""))
+        .help(area.title)
         .animation(.easeOut(duration: 0.14), value: isActive)
     }
 
@@ -180,7 +177,24 @@ struct GitMageShell: View {
         switch model.selectedArea {
         case .changes: DiffView(diff: model.diffSnapshot, tokens: tokens, fontSize: appearance.diffFontSize)
         case .history: DiffView(diff: model.commitDiff, tokens: tokens, fontSize: appearance.diffFontSize)
-        case .branches, .stashes: DiffView(diff: model.diffSnapshot, tokens: tokens, fontSize: appearance.diffFontSize)
+        case .branches:
+            EmptyStateView(
+                icon: "arrow.triangle.branch",
+                title: model.selectedBranchName.isEmpty ? "Branches" : model.selectedBranchName,
+                message: "Select a branch to check out from the list.",
+                tokens: tokens
+            )
+        case .stashes:
+            if let selectedStashDiff = model.selectedStashDiff {
+                DiffView(diff: selectedStashDiff, tokens: tokens, fontSize: appearance.diffFontSize)
+            } else {
+                EmptyStateView(
+                    icon: "tray.2",
+                    title: "Stashes",
+                    message: "Select a stash to preview its diff.",
+                    tokens: tokens
+                )
+            }
         case .pullRequests:
             if let prModel {
                 PullRequestDetailView(model: prModel, tokens: tokens, fontSize: appearance.diffFontSize)

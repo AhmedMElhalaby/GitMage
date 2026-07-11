@@ -18,6 +18,7 @@ final class PullRequestsViewModel: ObservableObject {
     @Published var authState: ForgeAuthState = .unknown
 
     private let repo: RepoRef?
+    // SAFETY: immutable, only accessed on the main actor
     private nonisolated(unsafe) let provider: GitForgeProvider?
     private let auth: GitForgeAuth
 

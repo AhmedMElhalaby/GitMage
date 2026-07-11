@@ -120,7 +120,7 @@ struct CommitBox: View {
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
-                .disabled(stagedCount == 0 || model.draftCommitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(model.isLoading || stagedCount == 0 || model.draftCommitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(12)

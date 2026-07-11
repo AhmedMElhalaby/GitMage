@@ -49,12 +49,14 @@ struct AdvancedContextPane: View {
                     .buttonStyle(.plain)
                     .padding(.horizontal, 10).padding(.vertical, 5)
                     .background(tokens.accentPrimary.opacity(0.18), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .disabled(model.isLoading)
 
                 Button("Abort") { Task { await model.abortOperation() } }
                     .buttonStyle(.plain)
                     .foregroundStyle(tokens.accentTertiary)
                     .padding(.horizontal, 10).padding(.vertical, 5)
                     .background(tokens.accentTertiary.opacity(0.15), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .disabled(model.isLoading)
             }
         }
         .padding(12)

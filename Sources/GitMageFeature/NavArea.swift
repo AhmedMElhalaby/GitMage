@@ -33,10 +33,5 @@ enum NavArea: String, CaseIterable, Identifiable {
         }
     }
 
-    var isReserved: Bool {
-        false
-    }
-
     static var built: [NavArea] { [.changes, .history, .branches, .stashes, .pullRequests, .worktrees, .issues, .advanced] }
-    static var reserved: [NavArea] { [] }
 }

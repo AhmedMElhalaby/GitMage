@@ -15,6 +15,7 @@ final class GitMageViewModel: ObservableObject {
     @Published var snapshot: GitRepositorySnapshot?
     @Published var branches: [GitBranchSummary] = []
     @Published var stashes: [GitStashEntry] = []
+    @Published var selectedStashDiff: GitDiffSnapshot?
     @Published var selectedBranchName: String = ""
     @Published var selectedChangeID: String?
     @Published var diffSnapshot: GitDiffSnapshot?
@@ -75,6 +76,7 @@ final class GitMageViewModel: ObservableObject {
         branches = []
         stashes = []
         diffSnapshot = nil
+        selectedStashDiff = nil
         errorMessage = nil
     }
 
@@ -250,6 +252,7 @@ final class GitMageViewModel: ObservableObject {
                 snapshot = newSnapshot
                 branches = newBranches
                 stashes = newStashes
+                selectedStashDiff = nil
                 commits = []
                 selectedCommitID = nil
                 commitDiff = nil
@@ -275,6 +278,7 @@ final class GitMageViewModel: ObservableObject {
                 branches = []
                 stashes = []
                 diffSnapshot = nil
+                selectedStashDiff = nil
                 isLoading = false
                 report(error, context: "load repository snapshot")
             }
@@ -366,6 +370,17 @@ final class GitMageViewModel: ObservableObject {
 
     func dropStash(_ entry: GitStashEntry) {
         run(context: "drop \(entry.id)") { [self] in try await client.stashDrop(entry, in: repositoryPath) }
+    }
+
+    func selectStash(_ entry: GitStashEntry) {
+        let path = repositoryPath
+        Task { @MainActor in
+            do {
+                selectedStashDiff = try await client.stashDiff(entry.id, in: path)
+            } catch {
+                selectedStashDiff = GitDiffSnapshot(title: entry.id, body: error.localizedDescription, isEmpty: true)
+            }
+        }
     }
 
     // MARK: - Diff
