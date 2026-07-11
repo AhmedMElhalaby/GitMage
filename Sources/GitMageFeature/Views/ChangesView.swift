@@ -17,32 +17,52 @@ struct ChangesContextPane: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if !unstaged.isEmpty {
-                HStack {
-                    Spacer()
-                    GMButton("Stage All", kind: .secondary, systemImage: "plus", tokens: tokens) { model.stageAllChanges() }
+            if staged.isEmpty && unstaged.isEmpty {
+                EmptyStateView(
+                    icon: "checkmark.seal",
+                    title: "Working tree clean",
+                    message: "No changes to stage or commit.",
+                    tokens: tokens
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        group(title: "STAGED", changes: staged, staged: true)
+                        group(title: "UNSTAGED", changes: unstaged, staged: false)
+                    }
+                    .padding(12)
                 }
-                .padding(.horizontal, 12).padding(.top, 10)
-            }
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    group(title: "STAGED", count: staged.count, changes: staged, staged: true)
-                    group(title: "UNSTAGED", count: unstaged.count, changes: unstaged, staged: false)
-                }
-                .padding(12)
             }
             CommitBox(model: model, tokens: tokens, accent: accent, stagedCount: staged.count)
         }
     }
 
-    @ViewBuilder private func group(title: String, count: Int, changes: [GitChange], staged: Bool) -> some View {
+    @ViewBuilder private func group(title: String, changes: [GitChange], staged: Bool) -> some View {
         if !changes.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(title).font(AinkradFont.display(10, weight: .semibold)).kerning(2).foregroundStyle(tokens.foreground.opacity(0.5))
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 8) {
+                    Text(title)
+                        .font(AinkradFont.display(10, weight: .semibold)).kerning(2)
+                        .foregroundStyle(tokens.foreground.opacity(0.5))
+                    Text("\(changes.count)")
+                        .font(AinkradFont.mono(9, weight: .medium))
+                        .foregroundStyle(tokens.foreground.opacity(0.5))
+                        .padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(Capsule().fill(tokens.surfaceElevated.opacity(0.6)))
                     Spacer()
-                    Text("\(count)").font(AinkradFont.mono(10)).foregroundStyle(tokens.foreground.opacity(0.5))
+                    if staged {
+                        RowIconButton(symbol: "minus", help: "Unstage all", tokens: tokens, size: 20) {
+                            model.unstageAllChanges()
+                        }
+                    } else {
+                        RowIconButton(symbol: "plus", help: "Stage all", tokens: tokens, size: 20) {
+                            model.stageAllChanges()
+                        }
+                    }
                 }
+                .padding(.horizontal, 4)
+
                 ForEach(changes, id: \.id) { change in
                     let rowID = "\(staged ? "staged" : "unstaged"):\(change.id)"
                     ChangeRow(change: change, isSelected: selectedRowID == rowID, staged: staged, tokens: tokens, accent: accent,
@@ -68,37 +88,122 @@ struct ChangeRow: View {
     let onDiscard: () -> Void
     @State private var hovering = false
 
-    var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: 8) {
-                Text(change.statusCode.trimmingCharacters(in: .whitespaces).isEmpty ? "•" : change.statusCode)
-                    .font(AinkradFont.mono(10)).foregroundStyle(accent)
-                    .frame(width: 22)
-                Text((change.path as NSString).lastPathComponent)
-                    .font(AinkradFont.display(12)).lineLimit(1)
-                Spacer()
-                if hovering {
-                    if staged {
-                        rowButton("minus.circle", action: onUnstage)
-                    } else {
-                        rowButton("plus.circle", action: onStage)
-                        rowButton("arrow.uturn.backward.circle", action: onDiscard)
-                    }
-                }
-            }
-            .padding(.horizontal, 8).padding(.vertical, 6)
-            .background(isSelected ? accent.opacity(0.13) : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear),
-                        in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.14), value: hovering)
+    private var fileName: String { (change.path as NSString).lastPathComponent }
+    private var directory: String {
+        let dir = (change.path as NSString).deletingLastPathComponent
+        return dir.isEmpty ? "" : dir
     }
 
-    private func rowButton(_ symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) { Image(systemName: symbol).font(.system(size: 13)) }
-            .buttonStyle(.plain).foregroundStyle(tokens.foreground.opacity(0.7))
+    /// Single-letter status glyph + its semantic color.
+    private var badgeLetter: String {
+        switch change.kind {
+        case .untracked: return "A"
+        case .modified, .staged: return "M"
+        case .deleted: return "D"
+        case .renamed: return "R"
+        case .conflicted: return "C"
+        case .ignored: return "I"
+        }
+    }
+    private var badgeColor: Color {
+        switch change.kind {
+        case .untracked: return GMColor.diffAdd(tokens)
+        case .deleted: return GMColor.diffRemove(tokens)
+        case .conflicted: return tokens.accentTertiary
+        case .renamed: return tokens.accentSecondary
+        case .modified, .staged: return tokens.accentTertiary
+        case .ignored: return tokens.foreground.opacity(0.4)
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(badgeLetter)
+                .font(AinkradFont.mono(10, weight: .bold))
+                .foregroundStyle(badgeColor)
+                .frame(width: 20, height: 20)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(badgeColor.opacity(0.16))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(badgeColor.opacity(0.35), lineWidth: 0.5)
+                )
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(fileName)
+                    .font(AinkradFont.display(12, weight: isSelected ? .medium : .regular))
+                    .foregroundStyle(tokens.foreground.opacity(isSelected ? 1 : 0.9))
+                    .lineLimit(1)
+                if !directory.isEmpty {
+                    Text(directory)
+                        .font(AinkradFont.mono(9))
+                        .foregroundStyle(tokens.foreground.opacity(0.4))
+                        .lineLimit(1).truncationMode(.middle)
+                }
+            }
+            Spacer(minLength: 4)
+
+            // Always laid out (reserves width so nothing shifts); revealed on
+            // hover. Not hit-testable while hidden so it never steals a click.
+            HStack(spacing: 4) {
+                if staged {
+                    RowIconButton(symbol: "minus", help: "Unstage", tokens: tokens, action: onUnstage)
+                } else {
+                    RowIconButton(symbol: "plus", help: "Stage", tokens: tokens, action: onStage)
+                    RowIconButton(symbol: "arrow.uturn.backward", help: "Discard", tokens: tokens, action: onDiscard)
+                }
+            }
+            .opacity(hovering ? 1 : 0)
+            .allowsHitTesting(hovering)
+        }
+        .padding(.horizontal, 9).padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(isSelected ? accent.opacity(0.13)
+                      : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
+        )
+        .overlay(alignment: .leading) {
+            // Glowing selection spine, matching the nav rail language.
+            if isSelected {
+                Capsule()
+                    .fill(accent)
+                    .frame(width: 3, height: 18)
+                    .shadow(color: accent.opacity(0.8), radius: 4)
+                    .padding(.leading, 1)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onSelect)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
+        .animation(.easeOut(duration: 0.14), value: isSelected)
+    }
+}
+
+/// A small circular HUD icon button with a hover-driven tooltip. Used for the
+/// row stage/unstage/discard actions and the group-header stage/unstage-all.
+struct RowIconButton: View {
+    let symbol: String
+    let help: String
+    let tokens: HostThemeTokens
+    var size: CGFloat = 22
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(tokens.foreground.opacity(hovering ? 1 : 0.8))
+                .frame(width: size, height: size)
+                .background(Circle().fill(tokens.surfaceElevated.opacity(hovering ? 0.95 : 0.8)))
+                .overlay(Circle().strokeBorder(tokens.accentPrimary.opacity(hovering ? 0.45 : 0.2)))
+        }
+        .buttonStyle(.plain)
+        .hudTooltip(help, edge: .bottom, active: hovering)
+        .onHover { hovering = $0 }
     }
 }
 
@@ -107,24 +212,70 @@ struct CommitBox: View {
     let tokens: HostThemeTokens
     let accent: Color
     let stagedCount: Int
+    @FocusState private var editorFocused: Bool
+
+    private var canCommit: Bool {
+        !model.isLoading && stagedCount > 0 &&
+        !model.draftCommitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            TextEditor(text: $model.draftCommitMessage)
-                .font(AinkradFont.display(12))
-                .scrollContentBackground(.hidden)
-                .frame(height: 72)
-                .padding(6)
-                .background(tokens.surfaceElevated.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(accent.opacity(0.2)))
+        VStack(alignment: .leading, spacing: 10) {
+            // Glow rule instead of a hard separator.
+            LinearGradient(
+                colors: [.clear, accent.opacity(0.4), .clear],
+                startPoint: .leading, endPoint: .trailing
+            )
+            .frame(height: 1)
+
             HStack {
-                Text("\(stagedCount) staged").font(AinkradFont.mono(10)).foregroundStyle(tokens.foreground.opacity(0.5))
+                Text("COMMIT")
+                    .font(AinkradFont.display(10, weight: .semibold)).kerning(2)
+                    .foregroundStyle(tokens.foreground.opacity(0.5))
                 Spacer()
-                GMButton("Commit", kind: .primary, tokens: tokens) { model.commitChanges() }
-                    .disabled(model.isLoading || stagedCount == 0 || model.draftCommitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Text("\(stagedCount) staged")
+                    .font(AinkradFont.mono(9, weight: .medium))
+                    .foregroundStyle(stagedCount > 0 ? accent.opacity(0.9) : tokens.foreground.opacity(0.4))
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Capsule().fill((stagedCount > 0 ? accent : tokens.foreground).opacity(0.12)))
+            }
+
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $model.draftCommitMessage)
+                    .font(AinkradFont.display(12))
+                    .scrollContentBackground(.hidden)
+                    .focused($editorFocused)
+                    .frame(height: 70)
+                    .padding(7)
+                if model.draftCommitMessage.isEmpty {
+                    Text("Summary of your changes…")
+                        .font(AinkradFont.display(12))
+                        .foregroundStyle(tokens.foreground.opacity(0.35))
+                        .padding(.horizontal, 12).padding(.vertical, 15)
+                        .allowsHitTesting(false)
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(tokens.surfaceElevated.opacity(0.5))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(accent.opacity(editorFocused ? 0.6 : 0.2),
+                                  lineWidth: editorFocused ? 1.2 : 1)
+            )
+            .shadow(color: editorFocused ? accent.opacity(0.25) : .clear, radius: 8)
+
+            HStack {
+                Spacer()
+                GMButton("Commit", kind: .primary, systemImage: "checkmark", tokens: tokens) {
+                    model.commitChanges()
+                }
+                .disabled(!canCommit)
+                .opacity(canCommit ? 1 : 0.5)
             }
         }
         .padding(12)
-        .background(tokens.surface.opacity(0.5))
+        .background(tokens.surface.opacity(0.4))
     }
 }

@@ -199,7 +199,7 @@ struct TopBarActionButton: View {
 
 // MARK: - Shared HUD surface finish
 
-enum HUDButtonKind { case chip, secondary, primary }
+enum HUDButtonKind { case chip, secondary, primary, destructive }
 
 private struct HUDButtonSurface: ViewModifier {
     let tokens: HostThemeTokens
@@ -224,11 +224,7 @@ private struct HUDButtonSurface: ViewModifier {
             // Gradient rim.
             .overlay(
                 shape.strokeBorder(
-                    LinearGradient(
-                        colors: [tokens.accentSecondary.opacity(hovering ? 0.85 : 0.5),
-                                 tokens.accentPrimary.opacity(hovering ? 0.4 : 0.2)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ),
+                    LinearGradient(colors: rimColors, startPoint: .topLeading, endPoint: .bottomTrailing),
                     lineWidth: 1
                 )
             )
@@ -244,12 +240,27 @@ private struct HUDButtonSurface: ViewModifier {
             .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
     }
 
+    private var rimColors: [Color] {
+        if kind == .destructive {
+            return [tokens.accentTertiary.opacity(hovering ? 0.8 : 0.45),
+                    tokens.accentTertiary.opacity(hovering ? 0.4 : 0.2)]
+        }
+        return [tokens.accentSecondary.opacity(hovering ? 0.85 : 0.5),
+                tokens.accentPrimary.opacity(hovering ? 0.4 : 0.2)]
+    }
+
     @ViewBuilder private var fill: some View {
         switch kind {
         case .primary:
             LinearGradient(
                 colors: [tokens.accentPrimary.opacity(hovering ? 1 : 0.92),
                          tokens.accentPrimary.opacity(hovering ? 0.9 : 0.72)],
+                startPoint: .top, endPoint: .bottom
+            )
+        case .destructive:
+            LinearGradient(
+                colors: [tokens.accentTertiary.opacity(hovering ? 0.28 : 0.16),
+                         tokens.accentTertiary.opacity(hovering ? 0.18 : 0.10)],
                 startPoint: .top, endPoint: .bottom
             )
         case .secondary, .chip:
@@ -264,6 +275,7 @@ private struct HUDButtonSurface: ViewModifier {
     private var glowColor: Color {
         switch kind {
         case .primary: return tokens.accentPrimary.opacity(hovering ? 0.55 : 0.35)
+        case .destructive: return tokens.accentTertiary.opacity(hovering ? 0.4 : 0.1)
         case .secondary, .chip: return tokens.accentPrimary.opacity(hovering ? 0.32 : 0.06)
         }
     }
@@ -271,12 +283,13 @@ private struct HUDButtonSurface: ViewModifier {
     private var glowRadius: CGFloat {
         switch kind {
         case .primary: return hovering ? 14 : 9
+        case .destructive: return hovering ? 12 : 4
         case .secondary, .chip: return hovering ? 11 : 3
         }
     }
 }
 
-private extension View {
+extension View {
     func hudButtonSurface(tokens: HostThemeTokens, kind: HUDButtonKind, hovering: Bool) -> some View {
         modifier(HUDButtonSurface(tokens: tokens, kind: kind, hovering: hovering))
     }

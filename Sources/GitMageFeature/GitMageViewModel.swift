@@ -421,6 +421,10 @@ final class GitMageViewModel: ObservableObject {
         run(context: "stage all changes") { [self] in try await client.stageAllChanges(in: repositoryPath) }
     }
 
+    func unstageAllChanges() {
+        run(context: "unstage all changes") { [self] in try await client.unstageAllChanges(in: repositoryPath) }
+    }
+
     func stageSelectedChange() {
         guard let change = selectedChange else { return }
         run(context: "stage \(change.filePath)") { [self] in try await client.stage(change: change, in: repositoryPath) }

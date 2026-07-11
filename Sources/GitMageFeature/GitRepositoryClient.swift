@@ -81,6 +81,17 @@ actor GitRepositoryClient {
         _ = try runGit(["add", "-A"], in: rootURL)
     }
 
+    /// Unstages every staged change. Before the first commit there is no HEAD to
+    /// reset against, so the whole index is cleared instead.
+    func unstageAllChanges(in path: String) throws {
+        let rootURL = try repositoryRootURL(for: path)
+        if try hasHead(in: rootURL) {
+            _ = try runGit(["reset"], in: rootURL)
+        } else {
+            _ = try runGit(["rm", "-r", "--cached", "."], in: rootURL)
+        }
+    }
+
     func stage(change: GitChange, in path: String) throws {
         let rootURL = try repositoryRootURL(for: path)
         if change.kind == .renamed, let sourcePath = change.sourcePath {
