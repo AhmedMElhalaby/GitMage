@@ -152,6 +152,7 @@ struct GHIssue: Codable {
     let labels: [GHLabel]
     let assignees: [GHUser]
     let comments: Int
+    let createdAt: String?
     let draft: Bool?                        // present on PR items from the search API
     let pullRequest: GHPullRequestMarker?   // JSON "pull_request" via convertFromSnakeCase
 
@@ -171,7 +172,8 @@ struct GHIssue: Codable {
 
     func toDetail() -> IssueDetail {
         IssueDetail(number: number, title: title, body: body ?? "", state: state,
-                    author: user.login, labels: labels.map { $0.toModel() },
+                    author: user.login, createdAt: createdAt ?? "",
+                    labels: labels.map { $0.toModel() },
                     assignees: assignees.map { $0.login })
     }
 }

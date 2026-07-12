@@ -301,6 +301,20 @@ actor GitRepositoryClient {
         return Int(output) ?? 0
     }
 
+    /// Commits with parent SHAs, for the commit-graph view.
+    func loadGraphCommits(limit: Int, in path: String) throws -> [GraphCommit] {
+        let rootURL = try repositoryRootURL(for: path)
+        guard try hasHead(in: rootURL) else { return [] }
+        let sep = "\u{1f}"
+        let output = try runGit([
+            "log",
+            "--topo-order",
+            "--max-count=\(max(1, limit))",
+            "--pretty=format:%H\(sep)%h\(sep)%s\(sep)%an\(sep)%ar\(sep)%P"
+        ], in: rootURL)
+        return GitGraphParser.parse(output)
+    }
+
     func loadLog(skip: Int = 0, limit: Int, in path: String) throws -> [GitCommitSummary] {
         let rootURL = try repositoryRootURL(for: path)
         guard try hasHead(in: rootURL) else { return [] }

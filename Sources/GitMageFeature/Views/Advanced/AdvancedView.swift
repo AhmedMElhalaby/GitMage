@@ -1,124 +1,83 @@
 import SwiftUI
 import AinkradAppKit
 
-/// Context pane (left rail) for the Advanced Ops area: in-progress banner + op picker.
+/// Context pane for the Advanced area: the commit list. Selecting a commit
+/// drives the contextual actions (cherry-pick / revert / reset / tag) in the
+/// detail pane — there is no per-action page.
 struct AdvancedContextPane: View {
     @ObservedObject var model: AdvancedViewModel
     let tokens: HostThemeTokens
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-            if model.operationState.isActive {
-                inProgressBanner
+            PaneHeader(title: "COMMITS", count: model.commits.count, tokens: tokens) {
+                if model.isLoading { GMSpinner(tint: tokens.accentSecondary, size: 16) }
             }
-            if let errorMessage = model.errorMessage {
-                errorBanner(errorMessage)
-            }
-            opList
-        }
-    }
 
-    private var header: some View {
-        PaneHeader(title: "ADVANCED", count: AdvancedViewModel.AdvancedOp.allCases.count, tokens: tokens) {
-            if model.isLoading { GMSpinner(tint: tokens.accentSecondary, size: 16) }
-        }
-    }
-
-    private var inProgressBanner: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
-                    .foregroundStyle(tokens.accentTertiary)
-                Text(model.operationState.label)
-                    .font(AinkradFont.display(12, weight: .semibold))
-            }
-            Text("Resolve conflicts in Changes, then Continue.")
-                .font(AinkradFont.display(11))
-                .foregroundStyle(tokens.foreground.opacity(0.6))
-            HStack(spacing: 8) {
-                GMButton("Continue", kind: .primary, tokens: tokens) { Task { await model.continueOperation() } }
-                    .disabled(model.isLoading)
-                GMButton("Abort", kind: .destructive, tokens: tokens) { Task { await model.abortOperation() } }
-                    .disabled(model.isLoading)
-            }
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(tokens.accentTertiary.opacity(0.08))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(tokens.accentTertiary.opacity(0.35))
-        )
-        .padding(.horizontal, 12)
-        .padding(.bottom, 10)
-    }
-
-    private func errorBanner(_ text: String) -> some View {
-        ErrorBanner(message: text, tokens: tokens)
-            .padding(.horizontal, 12)
-            .padding(.bottom, 8)
-    }
-
-    private var opList: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 3) {
-                ForEach(AdvancedViewModel.AdvancedOp.allCases) { op in
-                    AdvancedOpRow(op: op, tokens: tokens, isSelected: model.selectedOp == op) {
-                        model.selectedOp = op
+            if model.commits.isEmpty {
+                EmptyStateView(icon: "clock.arrow.circlepath", title: "No commits",
+                               message: "This repository has no history yet.", tokens: tokens)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 2) {
+                        ForEach(model.commits) { commit in
+                            AdvancedCommitRow(
+                                commit: commit,
+                                isSelected: model.selectedCommit == commit.id,
+                                tokens: tokens,
+                                onSelect: { model.selectedCommit = commit.id }
+                            )
+                        }
                     }
+                    .padding(.horizontal, 12).padding(.bottom, 12)
                 }
             }
-            .padding(.horizontal, 12).padding(.bottom, 12)
         }
     }
 }
 
-private struct AdvancedOpRow: View {
-    let op: AdvancedViewModel.AdvancedOp
-    let tokens: HostThemeTokens
+/// A selectable commit row (git node dot + summary + sha·author·date).
+struct AdvancedCommitRow: View {
+    let commit: GitCommitSummary
     let isSelected: Bool
-    let action: () -> Void
+    let tokens: HostThemeTokens
+    let onSelect: () -> Void
     @State private var hovering = false
-
-    private var icon: String {
-        switch op {
-        case .rebase: return "arrow.triangle.merge"
-        case .cherryPick: return "arrow.right.circle"
-        case .revert: return "arrow.uturn.backward"
-        case .reset: return "arrow.counterclockwise"
-        case .tags: return "tag"
-        }
-    }
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.system(size: 12))
-                .foregroundStyle(isSelected ? tokens.accentPrimary : tokens.foreground.opacity(0.55))
-                .frame(width: 16)
-            Text(op.title)
-                .font(AinkradFont.display(12))
-                .foregroundStyle(tokens.foreground.opacity(isSelected ? 1 : 0.88))
-            Spacer()
+            Image(systemName: "circle.fill")
+                .font(.system(size: 6))
+                .foregroundStyle(isSelected ? tokens.accentPrimary : tokens.accentSecondary.opacity(0.6))
+                .frame(width: 12)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(commit.summary)
+                    .font(AinkradFont.display(12))
+                    .foregroundStyle(tokens.foreground.opacity(isSelected ? 1 : 0.9))
+                    .lineLimit(1)
+                HStack(spacing: 8) {
+                    Text(commit.shortSHA).font(AinkradFont.mono(9, weight: .medium)).foregroundStyle(tokens.accentSecondary)
+                    Text(commit.author).font(AinkradFont.display(9)).foregroundStyle(tokens.foreground.opacity(0.5)).lineLimit(1)
+                    Text(commit.relativeDate).font(AinkradFont.display(9)).foregroundStyle(tokens.foreground.opacity(0.4))
+                }
+            }
+            Spacer(minLength: 4)
         }
-        .padding(.horizontal, 9).padding(.vertical, 8)
+        .padding(.horizontal, 9).padding(.vertical, 7)
         .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(isSelected ? tokens.accentPrimary.opacity(0.13)
                       : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
         )
         .overlay(alignment: .leading) {
-            Capsule().fill(tokens.accentPrimary).frame(width: 3, height: 18)
-                .shadow(color: tokens.accentPrimary.opacity(0.8), radius: 4).padding(.leading, 1)
+            Capsule().fill(tokens.accentPrimary).frame(width: 3, height: 16)
+                .shadow(color: tokens.accentPrimary.opacity(0.8), radius: 4)
                 .opacity(isSelected ? 1 : 0)
         }
         .contentShape(Rectangle())
-        .onTapGesture(perform: action)
+        .onTapGesture(perform: onSelect)
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.12), value: hovering)
-        .animation(.easeOut(duration: 0.14), value: isSelected)
     }
 }

@@ -45,52 +45,37 @@ struct NewIssueSheet: View {
     }
 
     private var labelsMenu: some View {
-        Menu {
-            ForEach(model.repoLabels) { label in
-                Button {
-                    if model.newLabels.contains(label.name) {
-                        model.newLabels.remove(label.name)
-                    } else {
-                        model.newLabels.insert(label.name)
-                    }
-                } label: {
-                    if model.newLabels.contains(label.name) {
-                        Label(label.name, systemImage: "checkmark")
-                    } else {
-                        Text(label.name)
-                    }
-                }
+        HUDMenu(
+            tokens: tokens,
+            items: model.repoLabels.map { label in
+                HUDMenuItem(id: label.name, title: label.name,
+                            isSelected: model.newLabels.contains(label.name), colorHex: label.color)
+            },
+            multiSelect: true,
+            onPick: { name in
+                if model.newLabels.contains(name) { model.newLabels.remove(name) }
+                else { model.newLabels.insert(name) }
             }
-        } label: {
-            Label(model.newLabels.isEmpty ? "Labels" : model.newLabels.joined(separator: ", "), systemImage: "tag")
-                .font(AinkradFont.display(11, weight: .medium))
+        ) {
+            HUDMenuLabel(text: model.newLabels.isEmpty ? "Labels" : model.newLabels.sorted().joined(separator: ", "),
+                         isPlaceholder: model.newLabels.isEmpty, tokens: tokens)
         }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
     }
 
     private var assigneesMenu: some View {
-        Menu {
-            ForEach(model.assignableUsers, id: \.login) { user in
-                Button {
-                    if model.newAssignees.contains(user.login) {
-                        model.newAssignees.remove(user.login)
-                    } else {
-                        model.newAssignees.insert(user.login)
-                    }
-                } label: {
-                    if model.newAssignees.contains(user.login) {
-                        Label(user.login, systemImage: "checkmark")
-                    } else {
-                        Text(user.login)
-                    }
-                }
+        HUDMenu(
+            tokens: tokens,
+            items: model.assignableUsers.map { user in
+                HUDMenuItem(id: user.login, title: user.login, isSelected: model.newAssignees.contains(user.login))
+            },
+            multiSelect: true,
+            onPick: { login in
+                if model.newAssignees.contains(login) { model.newAssignees.remove(login) }
+                else { model.newAssignees.insert(login) }
             }
-        } label: {
-            Label(model.newAssignees.isEmpty ? "Assignees" : model.newAssignees.joined(separator: ", "), systemImage: "person")
-                .font(AinkradFont.display(11, weight: .medium))
+        ) {
+            HUDMenuLabel(text: model.newAssignees.isEmpty ? "Assignees" : model.newAssignees.sorted().joined(separator: ", "),
+                         isPlaceholder: model.newAssignees.isEmpty, tokens: tokens)
         }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
     }
 }

@@ -6,6 +6,7 @@ import AinkradAppKit
 struct WorktreeDetailView: View {
     @ObservedObject var model: WorktreesViewModel
     let tokens: HostThemeTokens
+    var fontSize: Double = 12
 
     private var selected: GitWorktree? {
         model.worktrees.first { $0.path == model.selectedPath }
@@ -14,7 +15,7 @@ struct WorktreeDetailView: View {
     var body: some View {
         Group {
             if let wt = selected {
-                summary(for: wt)
+                graphView(for: wt)
             } else {
                 emptyState
             }
@@ -26,51 +27,89 @@ struct WorktreeDetailView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "rectangle.split.3x1")
-                .font(.system(size: 30, weight: .light))
-                .foregroundStyle(tokens.accentPrimary.opacity(0.5))
-            Text("Select a worktree.")
-                .font(AinkradFont.display(13))
-                .foregroundStyle(tokens.foreground.opacity(0.55))
-        }
+        EmptyStateView(icon: "rectangle.split.3x1", title: "Worktrees",
+                       message: "Select a worktree to browse its commit graph.", tokens: tokens)
     }
 
-    private func summary(for wt: GitWorktree) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text((wt.path as NSString).lastPathComponent)
-                .font(AinkradFont.display(18, weight: .semibold))
-            infoRow(label: "Path", value: wt.path, mono: true)
-            infoRow(label: "HEAD", value: wt.head, mono: true)
-            infoRow(label: "Branch", value: wt.branch ?? "detached")
-            infoRow(label: "Status", value: statusText(for: wt))
-            GMButton("Open in Git Mage", kind: .primary, systemImage: "arrow.up.forward.square", tokens: tokens) {
-                model.open(wt)
+    // MARK: - Graph view
+
+    private func graphView(for wt: GitWorktree) -> some View {
+        VStack(spacing: 0) {
+            header(for: wt)
+            GlowRule(tokens: tokens)
+
+            if model.isLoadingGraph {
+                GMSpinner(tint: tokens.accentSecondary, size: 22)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.graphRows.isEmpty {
+                EmptyStateView(icon: "point.3.connected.trianglepath.dotted", title: "No history",
+                               message: "This worktree has no commits yet.", tokens: tokens)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                graphAndDiff
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func header(for wt: GitWorktree) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 8) {
+                    Text((wt.path as NSString).lastPathComponent)
+                        .font(AinkradFont.display(15, weight: .semibold))
+                        .foregroundStyle(tokens.foreground)
+                    if model.isCurrent(wt) {
+                        Text("CURRENT")
+                            .font(AinkradFont.mono(8, weight: .bold)).tracking(1)
+                            .foregroundStyle(tokens.accentPrimary)
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(Capsule().fill(tokens.accentPrimary.opacity(0.16)))
+                    }
+                }
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.triangle.branch").font(.system(size: 9)).foregroundStyle(tokens.foreground.opacity(0.5))
+                    Text(wt.branch ?? "detached")
+                        .font(AinkradFont.mono(11))
+                        .foregroundStyle(wt.branch != nil ? tokens.accentPrimary.opacity(0.85) : tokens.foreground.opacity(0.55))
+                }
             }
             Spacer()
+            GMButton("Open", kind: .primary, systemImage: "arrow.up.forward.square", tokens: tokens) {
+                model.open(wt)
+            }
         }
-        .padding(24)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .padding(.horizontal, 16).padding(.vertical, 12)
     }
 
-    private func statusText(for wt: GitWorktree) -> String {
-        var pieces: [String] = []
-        if wt.isLocked { pieces.append("locked") }
-        if wt.isPrunable { pieces.append("prunable") }
-        if wt.isBare { pieces.append("bare") }
-        return pieces.isEmpty ? "clean" : pieces.joined(separator: " · ")
-    }
+    private var graphAndDiff: some View {
+        let maxLanes = model.graphRows.map(\.laneCount).max() ?? 1
+        return VStack(spacing: 0) {
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(model.graphRows) { row in
+                        GraphCommitRow(
+                            row: row,
+                            laneCount: maxLanes,
+                            isSelected: model.selectedCommitSHA == row.commit.sha,
+                            tokens: tokens,
+                            onSelect: { model.selectCommit(row.commit.sha) }
+                        )
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-    private func infoRow(label: String, value: String, mono: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label.uppercased())
-                .font(AinkradFont.display(9, weight: .semibold))
-                .foregroundStyle(tokens.foreground.opacity(0.45))
-            Text(value)
-                .font(mono ? AinkradFont.mono(12) : AinkradFont.display(12, weight: .medium))
-                .foregroundStyle(tokens.foreground.opacity(0.85))
+            if let diff = model.selectedCommitDiff {
+                GlowRule(tokens: tokens)
+                FileDiffList(files: DiffFileSplitter.split(diff.body), tokens: tokens,
+                            fontSize: fontSize, fallbackTitle: diff.title)
+                    .frame(height: 300)
+            }
         }
     }
+
 }
 
 private struct AddWorktreeSheet: View {
@@ -148,16 +187,14 @@ private struct AddWorktreeSheet: View {
         case .newBranch:
             HUDTextField(placeholder: "Branch name", text: $model.addBranchName, tokens: tokens)
         case .existingBranch:
-            Menu {
-                ForEach(model.branchNames, id: \.self) { name in
-                    Button(name) { model.addExistingBranch = name }
-                }
-            } label: {
+            HUDMenu(
+                tokens: tokens,
+                items: model.branchNames.map { HUDMenuItem(id: $0, title: $0, isSelected: $0 == model.addExistingBranch) },
+                onPick: { model.addExistingBranch = $0 }
+            ) {
                 HUDMenuLabel(text: model.addExistingBranch ?? "Choose a branch",
                              isPlaceholder: model.addExistingBranch == nil, tokens: tokens)
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
         case .detached:
             HUDTextField(placeholder: "Ref (commit, tag, branch)", text: $model.addRef, tokens: tokens)
         }
