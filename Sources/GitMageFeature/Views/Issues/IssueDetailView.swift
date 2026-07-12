@@ -16,11 +16,17 @@ struct IssueDetailView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         header(detail)
                         editors(detail)
-                        if !detail.body.isEmpty {
-                            MarkdownText(markdown: detail.body, tokens: tokens)
+                        DiscussionCard(author: detail.author, timestamp: detail.createdAt,
+                                       text: detail.body, isPrimary: true, tokens: tokens)
+                        if !model.comments.isEmpty {
+                            Text("\(model.comments.count) comment\(model.comments.count == 1 ? "" : "s")")
+                                .font(AinkradFont.display(10, weight: .semibold)).kerning(1.5)
+                                .foregroundStyle(tokens.foreground.opacity(0.45))
+                                .padding(.top, 2)
                         }
                         ForEach(model.comments) { comment in
-                            IssueCommentRow(comment: comment, tokens: tokens)
+                            DiscussionCard(author: comment.author, timestamp: comment.createdAt,
+                                           text: comment.body, isPrimary: false, tokens: tokens)
                         }
                     }
                     .padding(16)
@@ -51,9 +57,9 @@ struct IssueDetailView: View {
                 StatusPill(text: detail.state.lowercased() == "open" ? "Open" : "Closed",
                            kind: detail.state.lowercased() == "open" ? .open : .closedMerged, tokens: tokens)
             }
-            Text(detail.author)
-                .font(AinkradFont.mono(11))
-                .foregroundStyle(tokens.foreground.opacity(0.55))
+            Text("opened by \(detail.author) · \(ForgeDate.short(detail.createdAt))")
+                .font(AinkradFont.mono(10))
+                .foregroundStyle(tokens.foreground.opacity(0.5))
         }
     }
 
@@ -91,23 +97,22 @@ struct IssueDetailView: View {
     }
 }
 
-private struct IssueCommentRow: View {
-    let comment: ForgeComment
+/// The HUD trigger chip for the labels/assignees dropdown menus.
+private struct EditorChip: View {
+    let icon: String
+    let title: String
     let tokens: HostThemeTokens
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Text(comment.author)
-                    .font(AinkradFont.display(11, weight: .semibold))
-                Text(comment.createdAt)
-                    .font(AinkradFont.mono(9))
-                    .foregroundStyle(tokens.foreground.opacity(0.45))
-            }
-            MarkdownText(markdown: comment.body, tokens: tokens)
+        HStack(spacing: 5) {
+            Image(systemName: icon).font(.system(size: 10))
+            Text(title).font(AinkradFont.display(11, weight: .medium))
+            Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold)).opacity(0.6)
         }
-        .padding(10)
-        .background(tokens.surfaceElevated.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .foregroundStyle(tokens.accentPrimary.opacity(0.9))
+        .padding(.horizontal, 9).padding(.vertical, 5)
+        .background(Capsule().fill(tokens.surfaceElevated.opacity(0.5)))
+        .overlay(Capsule().strokeBorder(tokens.accentPrimary.opacity(0.2)))
     }
 }
 
@@ -133,10 +138,10 @@ private struct LabelsEditor: View {
                     }
                 }
             } label: {
-                Label("Labels", systemImage: "tag")
-                    .font(AinkradFont.display(11, weight: .medium))
+                EditorChip(icon: "tag", title: "Labels", tokens: tokens)
             }
             .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
             .fixedSize()
 
             ForEach(detail.labels) { label in
@@ -178,16 +183,27 @@ private struct AssigneesEditor: View {
                     }
                 }
             } label: {
-                Label("Assignees", systemImage: "person")
-                    .font(AinkradFont.display(11, weight: .medium))
+                EditorChip(icon: "person", title: "Assignees", tokens: tokens)
             }
             .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
             .fixedSize()
 
-            if !detail.assignees.isEmpty {
-                Text(detail.assignees.joined(separator: ", "))
-                    .font(AinkradFont.mono(10))
-                    .foregroundStyle(tokens.foreground.opacity(0.6))
+            ForEach(detail.assignees, id: \.self) { login in
+                HStack(spacing: 4) {
+                    ZStack {
+                        Circle().fill(tokens.accentSecondary.opacity(0.2))
+                        Text(String(login.prefix(1)).uppercased())
+                            .font(AinkradFont.display(8, weight: .bold))
+                            .foregroundStyle(tokens.accentSecondary)
+                    }
+                    .frame(width: 15, height: 15)
+                    Text(login)
+                        .font(AinkradFont.mono(10))
+                        .foregroundStyle(tokens.foreground.opacity(0.75))
+                }
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(Capsule().fill(tokens.surfaceElevated.opacity(0.5)))
             }
         }
     }

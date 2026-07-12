@@ -11,7 +11,7 @@ final class IssuesViewModelTests: XCTestCase {
     }
 
     private func makeDetail(number: Int = 7, state: String = "open") -> IssueDetail {
-        IssueDetail(number: number, title: "Bug", body: "body", state: state, author: "alice", labels: [IssueLabel(name: "bug", color: "red")], assignees: ["bob"])
+        IssueDetail(number: number, title: "Bug", body: "body", state: state, author: "alice", createdAt: "2026-07-01T00:00:00Z", labels: [IssueLabel(name: "bug", color: "red")], assignees: ["bob"])
     }
 
     func testLoadPopulatesIssuesLabelsAndUsers() async {

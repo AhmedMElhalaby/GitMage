@@ -136,6 +136,7 @@ struct IssueDetail: Equatable {
     let body: String
     let state: String
     let author: String
+    let createdAt: String
     let labels: [IssueLabel]
     let assignees: [String]
 }

@@ -230,57 +230,6 @@ struct PullRequestDetailView: View {
     }
 }
 
-/// A discussion entry (PR/issue description or a comment): an author/date
-/// header strip over the body, GitHub-style.
-private struct DiscussionCard: View {
-    let author: String
-    let timestamp: String
-    let text: String
-    let isPrimary: Bool
-    let tokens: HostThemeTokens
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                ZStack {
-                    Circle().fill(tokens.accentPrimary.opacity(0.18))
-                    Text(String(author.prefix(1)).uppercased())
-                        .font(AinkradFont.display(10, weight: .bold))
-                        .foregroundStyle(tokens.accentPrimary)
-                }
-                .frame(width: 22, height: 22)
-                Text(author)
-                    .font(AinkradFont.display(12, weight: .semibold))
-                    .foregroundStyle(tokens.foreground.opacity(0.9))
-                Text(ForgeDate.short(timestamp))
-                    .font(AinkradFont.mono(9))
-                    .foregroundStyle(tokens.foreground.opacity(0.45))
-                Spacer()
-            }
-            .padding(.horizontal, 12).padding(.vertical, 8)
-            .background(tokens.surfaceElevated.opacity(0.5))
-
-            Group {
-                if text.isEmpty {
-                    Text("No description provided.")
-                        .font(AinkradFont.display(12))
-                        .foregroundStyle(tokens.foreground.opacity(0.4))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    MarkdownText(markdown: text, tokens: tokens)
-                }
-            }
-            .padding(12)
-        }
-        .background(tokens.surface.opacity(0.4))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(isPrimary ? tokens.accentPrimary.opacity(0.3) : tokens.foreground.opacity(0.08))
-        )
-    }
-}
-
 private struct PRCommitRow: View {
     let commit: PRCommit
     let tokens: HostThemeTokens
