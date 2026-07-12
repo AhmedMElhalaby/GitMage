@@ -125,24 +125,18 @@ private struct LabelsEditor: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Menu {
-                ForEach(model.repoLabels) { label in
-                    Button {
-                        toggle(label.name)
-                    } label: {
-                        if detail.labels.contains(where: { $0.name == label.name }) {
-                            Label(label.name, systemImage: "checkmark")
-                        } else {
-                            Text(label.name)
-                        }
-                    }
-                }
-            } label: {
+            HUDMenu(
+                tokens: tokens,
+                items: model.repoLabels.map { label in
+                    HUDMenuItem(id: label.name, title: label.name,
+                                isSelected: detail.labels.contains { $0.name == label.name },
+                                colorHex: label.color)
+                },
+                multiSelect: true,
+                onPick: { toggle($0) }
+            ) {
                 EditorChip(icon: "tag", title: "Labels", tokens: tokens)
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
 
             ForEach(detail.labels) { label in
                 ColoredLabelChip(label: label)
@@ -170,24 +164,17 @@ private struct AssigneesEditor: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Menu {
-                ForEach(model.assignableUsers, id: \.login) { user in
-                    Button {
-                        toggle(user.login)
-                    } label: {
-                        if detail.assignees.contains(user.login) {
-                            Label(user.login, systemImage: "checkmark")
-                        } else {
-                            Text(user.login)
-                        }
-                    }
-                }
-            } label: {
+            HUDMenu(
+                tokens: tokens,
+                items: model.assignableUsers.map { user in
+                    HUDMenuItem(id: user.login, title: user.login,
+                                isSelected: detail.assignees.contains(user.login))
+                },
+                multiSelect: true,
+                onPick: { toggle($0) }
+            ) {
                 EditorChip(icon: "person", title: "Assignees", tokens: tokens)
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
 
             ForEach(detail.assignees, id: \.self) { login in
                 HStack(spacing: 4) {

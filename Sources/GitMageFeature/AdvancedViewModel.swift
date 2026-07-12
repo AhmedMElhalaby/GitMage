@@ -145,8 +145,9 @@ final class AdvancedViewModel: ObservableObject {
         guard !repositoryPath.isEmpty else { return }
         let name = newTagName
         let message = newTagMessage.isEmpty ? nil : newTagMessage
+        let target = selectedCommit   // tag the selected commit, else HEAD
         await runMutation { [self] in
-            try await client.createTag(name: name, message: message, in: repositoryPath)
+            try await client.createTag(name: name, message: message, at: target, in: repositoryPath)
         }
         if errorMessage == nil {
             newTagName = ""

@@ -15,6 +15,12 @@ final class WorktreesViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
 
+    // Commit graph of the selected worktree.
+    @Published var graphRows: [GraphRow] = []
+    @Published var isLoadingGraph = false
+    @Published var selectedCommitSHA: String?
+    @Published var selectedCommitDiff: GitDiffSnapshot?
+
     @Published var showAdd = false
     @Published var addMode: AddMode = .newBranch
     @Published var addBranchName: String = ""
@@ -62,6 +68,30 @@ final class WorktreesViewModel: ObservableObject {
 
     func select(_ path: String) {
         selectedPath = path
+        selectedCommitSHA = nil
+        selectedCommitDiff = nil
+        graphRows = []
+        Task { await loadGraph(for: path) }
+    }
+
+    private func loadGraph(for path: String) async {
+        isLoadingGraph = true
+        defer { isLoadingGraph = false }
+        let commits = (try? await client.loadGraphCommits(limit: 200, in: path)) ?? []
+        // Guard against a newer selection having superseded this load.
+        guard selectedPath == path else { return }
+        graphRows = GitGraphBuilder.build(commits)
+    }
+
+    /// Loads the diff for a commit tapped in the graph.
+    func selectCommit(_ sha: String) {
+        guard let path = selectedPath else { return }
+        selectedCommitSHA = sha
+        Task {
+            let diff = try? await client.loadCommitDiff(sha: sha, in: path)
+            guard selectedCommitSHA == sha else { return }
+            selectedCommitDiff = diff
+        }
     }
 
     func add(destination: String) async {

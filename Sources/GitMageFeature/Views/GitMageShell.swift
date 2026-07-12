@@ -76,6 +76,16 @@ struct GitMageShell: View {
                     dismiss: { withAnimation(.easeOut(duration: 0.16)) { self.management = nil } }
                 )
             }
+
+            if model.showInitPrompt {
+                HUDConfirmDialog(
+                    title: "Initialize a new Git repository?",
+                    message: "\(model.pendingInitPath ?? "") is not a Git repository yet. Initialize it and add it to your library?",
+                    confirmTitle: "Initialize", tokens: tokens,
+                    onConfirm: { model.confirmInitPendingRepository() },
+                    onCancel: { model.cancelInitPendingRepository() }
+                )
+            }
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.85), value: management)
         .background(
@@ -99,12 +109,6 @@ struct GitMageShell: View {
         }
         .task(id: AdvancedTaskKey(isActive: model.selectedArea == .advanced, repoID: model.activeRepoID)) {
             await buildAdvancedModelIfNeeded()
-        }
-        .alert("Initialize a new Git repository?", isPresented: $model.showInitPrompt) {
-            Button("Cancel", role: .cancel) { model.cancelInitPendingRepository() }
-            Button("Initialize") { model.confirmInitPendingRepository() }
-        } message: {
-            Text("\(model.pendingInitPath ?? "") is not a Git repository yet. Initialize it and add it to your library?")
         }
         .sheet(isPresented: $model.showClonePrompt) { cloneSheet }
     }
@@ -220,7 +224,14 @@ struct GitMageShell: View {
     @ViewBuilder private var detailPane: some View {
         switch model.selectedArea {
         case .changes: DiffView(diff: model.diffSnapshot, tokens: tokens, fontSize: appearance.diffFontSize)
-        case .history: DiffView(diff: model.commitDiff, tokens: tokens, fontSize: appearance.diffFontSize)
+        case .history:
+            if let commitDiff = model.commitDiff {
+                FileDiffList(files: DiffFileSplitter.split(commitDiff.body), tokens: tokens,
+                            fontSize: appearance.diffFontSize, fallbackTitle: commitDiff.title)
+            } else {
+                EmptyStateView(icon: "clock.arrow.circlepath", title: "History",
+                               message: "Select a commit to inspect its changed files.", tokens: tokens)
+            }
         case .branches:
             EmptyStateView(
                 icon: "arrow.triangle.branch",
@@ -230,12 +241,13 @@ struct GitMageShell: View {
             )
         case .stashes:
             if let selectedStashDiff = model.selectedStashDiff {
-                DiffView(diff: selectedStashDiff, tokens: tokens, fontSize: appearance.diffFontSize)
+                FileDiffList(files: DiffFileSplitter.split(selectedStashDiff.body), tokens: tokens,
+                            fontSize: appearance.diffFontSize, fallbackTitle: selectedStashDiff.title)
             } else {
                 EmptyStateView(
                     icon: "tray.2",
                     title: "Stashes",
-                    message: "Select a stash to preview its diff.",
+                    message: "Select a stash to preview its changed files.",
                     tokens: tokens
                 )
             }
@@ -253,7 +265,7 @@ struct GitMageShell: View {
             }
         case .worktrees:
             if let worktreesModel {
-                WorktreeDetailView(model: worktreesModel, tokens: tokens)
+                WorktreeDetailView(model: worktreesModel, tokens: tokens, fontSize: appearance.diffFontSize)
             } else {
                 selectRepoPlaceholder
             }

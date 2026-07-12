@@ -10,6 +10,10 @@ struct DiffView: View {
     var embedded: Bool = false
     var showHeader: Bool = true
 
+    private let numberWidth: CGFloat = 34
+    private let signWidth: CGFloat = 16
+    private var gutterWidth: CGFloat { numberWidth * 2 + 8 }
+
     private enum LineKind { case hunk, add, remove, context, meta }
     private struct Row: Identifiable {
         let id: Int
@@ -37,27 +41,43 @@ struct DiffView: View {
         }
     }
 
+    private func header(title: String, rows: [Row]) -> some View {
+        let additions = rows.filter { $0.kind == .add }.count
+        let deletions = rows.filter { $0.kind == .remove }.count
+        return HStack(spacing: 8) {
+            Image(systemName: "doc.text").font(.system(size: 11)).foregroundStyle(tokens.accentSecondary)
+            Text(title)
+                .font(AinkradFont.mono(11, weight: .medium))
+                .foregroundStyle(tokens.foreground.opacity(0.75))
+                .lineLimit(1).truncationMode(.middle)
+            Spacer(minLength: 8)
+            if additions > 0 {
+                Text("+\(additions)").font(AinkradFont.mono(10, weight: .semibold)).foregroundStyle(GMColor.diffAdd(tokens))
+            }
+            if deletions > 0 {
+                Text("−\(deletions)").font(AinkradFont.mono(10, weight: .semibold)).foregroundStyle(GMColor.diffRemove(tokens))
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 9)
+    }
+
     @ViewBuilder private func content(_ rows: [Row]) -> some View {
         if rows.contains(where: { $0.kind != .meta }) {
+            // Uniform code width so add/remove tints line up like GitHub, and
+            // long lines scroll horizontally without wrapping.
+            let maxLen = rows.filter { $0.kind != .meta }
+                .map { displayText($0).count }.max() ?? 0
+            let codeWidth = max(CGFloat(maxLen) * CGFloat(fontSize) * 0.62 + 10, 80)
+            let stack = VStack(alignment: .leading, spacing: 0) {
+                ForEach(rows) { row($0, codeWidth: codeWidth) }
+            }
+            .padding(.vertical, 4)
+            .textSelection(.enabled)
+
             if embedded {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(rows) { row($0) }
-                    }
-                    .padding(.vertical, 4)
-                    .textSelection(.enabled)
-                }
+                ScrollView(.horizontal, showsIndicators: false) { stack }
             } else {
-                ScrollView([.vertical, .horizontal]) {
-                    // Plain VStack (not Lazy): a LazyVStack in a bidirectional
-                    // ScrollView mis-estimates its height and leaves empty
-                    // vertical space below the content.
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(rows) { row($0) }
-                    }
-                    .padding(.vertical, 6)
-                    .textSelection(.enabled)
-                }
+                ScrollView([.vertical, .horizontal]) { stack }
             }
         } else if !embedded {
             EmptyStateView(icon: "doc.text", title: "No textual changes",
@@ -65,88 +85,72 @@ struct DiffView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             Text("No textual changes.")
-                .font(AinkradFont.mono(10))
-                .foregroundStyle(tokens.foreground.opacity(0.4))
-                .padding(8)
+                .font(AinkradFont.mono(10)).foregroundStyle(tokens.foreground.opacity(0.4)).padding(8)
         }
     }
 
-    private func header(title: String, rows: [Row]) -> some View {
-        let additions = rows.filter { $0.kind == .add }.count
-        let deletions = rows.filter { $0.kind == .remove }.count
-        return HStack(spacing: 8) {
-            Image(systemName: "doc.text")
-                .font(.system(size: 11))
-                .foregroundStyle(tokens.accentSecondary)
-            Text(title)
-                .font(AinkradFont.mono(11, weight: .medium))
-                .foregroundStyle(tokens.foreground.opacity(0.75))
-                .lineLimit(1).truncationMode(.middle)
-            Spacer(minLength: 8)
-            if additions > 0 {
-                Text("+\(additions)")
-                    .font(AinkradFont.mono(10, weight: .semibold))
-                    .foregroundStyle(GMColor.diffAdd(tokens))
-            }
-            if deletions > 0 {
-                Text("−\(deletions)")
-                    .font(AinkradFont.mono(10, weight: .semibold))
-                    .foregroundStyle(GMColor.diffRemove(tokens))
-            }
-        }
-        .padding(.horizontal, 14).padding(.vertical, 9)
-    }
-
-    @ViewBuilder private func row(_ r: Row) -> some View {
+    @ViewBuilder private func row(_ r: Row, codeWidth: CGFloat) -> some View {
         switch r.kind {
         case .meta:
-            EmptyView()   // diff/index/+++/--- headers are noise; hide them
+            EmptyView()
         case .hunk:
-            Text(r.text)
-                .font(AinkradFont.mono(fontSize - 1, weight: .medium))
-                .foregroundStyle(tokens.accentSecondary.opacity(0.9))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 10).padding(.vertical, 3)
-                .background(tokens.accentSecondary.opacity(0.08))
-        default:
-            let color = lineColor(r.kind)
             HStack(spacing: 0) {
-                gutter(r.oldNo)
-                gutter(r.newNo)
+                Color.clear.frame(width: gutterWidth + signWidth)
+                Text(r.text)
+                    .font(AinkradFont.mono(fontSize - 1, weight: .medium))
+                    .foregroundStyle(tokens.accentSecondary.opacity(0.9))
+                    .lineLimit(1)
+                    .frame(width: codeWidth, alignment: .leading)
+                    .padding(.leading, 4)
+            }
+            .background(tokens.accentSecondary.opacity(0.08))
+        default:
+            HStack(spacing: 0) {
+                gutterCell(r.oldNo, r.newNo)
                 Text(sign(r.kind))
                     .font(AinkradFont.mono(fontSize))
-                    .foregroundStyle(color.opacity(0.9))
-                    .frame(width: 16, alignment: .center)
-                Text(r.text.isEmpty ? " " : r.text)
+                    .foregroundStyle(signColor(r.kind))
+                    .frame(width: signWidth, alignment: .center)
+                Text(SyntaxHighlighter.highlight(displayText(r), tokens: tokens))
                     .font(AinkradFont.mono(fontSize))
-                    .foregroundStyle(color)
-                Spacer(minLength: 12)
+                    .lineLimit(1)
+                    .frame(width: codeWidth, alignment: .leading)
+                    .padding(.trailing, 8)
             }
-            .padding(.vertical, 0.5)
             .background(lineBackground(r.kind))
         }
     }
 
-    private func gutter(_ number: Int?) -> some View {
-        Text(number.map(String.init) ?? "")
-            .font(AinkradFont.mono(max(9, fontSize - 2)))
-            .foregroundStyle(tokens.foreground.opacity(0.3))
-            .frame(width: 40, alignment: .trailing)
-            .padding(.trailing, 6)
+    private func gutterCell(_ old: Int?, _ new: Int?) -> some View {
+        HStack(spacing: 0) {
+            Text(old.map(String.init) ?? "")
+                .frame(width: numberWidth, alignment: .trailing)
+            Text(new.map(String.init) ?? "")
+                .frame(width: numberWidth, alignment: .trailing)
+        }
+        .font(AinkradFont.mono(max(9, fontSize - 2)))
+        .foregroundStyle(tokens.foreground.opacity(0.3))
+        .padding(.trailing, 8)
+        .background(tokens.foreground.opacity(0.03))
     }
 
-    private func lineColor(_ kind: LineKind) -> Color {
+    /// Tab-expanded text for a row (tabs → 4 spaces) so columns align.
+    private func displayText(_ r: Row) -> String {
+        r.text.replacingOccurrences(of: "\t", with: "    ")
+    }
+
+    private func signColor(_ kind: LineKind) -> Color {
         switch kind {
         case .add: return GMColor.diffAdd(tokens)
         case .remove: return GMColor.diffRemove(tokens)
-        default: return tokens.foreground.opacity(0.85)
+        default: return tokens.foreground.opacity(0.3)
         }
     }
 
     private func lineBackground(_ kind: LineKind) -> Color {
         switch kind {
-        case .add: return GMColor.diffAdd(tokens).opacity(0.10)
-        case .remove: return GMColor.diffRemove(tokens).opacity(0.10)
+        case .add: return GMColor.diffAdd(tokens).opacity(0.12)
+        case .remove: return GMColor.diffRemove(tokens).opacity(0.12)
         default: return .clear
         }
     }
@@ -161,8 +165,6 @@ struct DiffView: View {
 
     // MARK: - Parsing
 
-    /// Turns unified-diff text into gutter-numbered rows, tracking old/new line
-    /// counters across hunks.
     private static func parse(_ body: String) -> [Row] {
         var rows: [Row] = []
         var oldLine = 0
@@ -197,7 +199,6 @@ struct DiffView: View {
         return rows
     }
 
-    /// Extracts the starting old/new line numbers from `@@ -a,b +c,d @@`.
     private static func parseHunkHeader(_ line: String) -> (Int, Int) {
         var oldStart = 0
         var newStart = 0

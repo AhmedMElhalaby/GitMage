@@ -1,216 +1,198 @@
 import SwiftUI
 import AinkradAppKit
 
-/// Detail pane for the selected Advanced op: rebase, cherry-pick, revert, reset, tags.
+/// Detail pane for the Advanced area: one page of contextual actions — the
+/// selected commit's ops (cherry-pick / revert / reset / tag-target), a rebase
+/// card, and a tags card. No per-action page.
 struct AdvancedDetailView: View {
     @ObservedObject var model: AdvancedViewModel
     let tokens: HostThemeTokens
 
-    var body: some View {
-        Group {
-            switch model.selectedOp {
-            case .rebase:
-                RebasePane(model: model, tokens: tokens)
-            case .cherryPick:
-                CherryPickRevertPane(model: model, tokens: tokens, mode: .cherryPick)
-            case .revert:
-                CherryPickRevertPane(model: model, tokens: tokens, mode: .revert)
-            case .reset:
-                ResetPane(model: model, tokens: tokens)
-            case .tags:
-                TagsPane(model: model, tokens: tokens)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(20)
-        .alert(item: $model.pendingConfirm) { pending in
-            Alert(
-                title: Text(pending.title),
-                message: Text(pending.message),
-                primaryButton: .default(Text("Confirm")) { Task { await model.confirmPending() } },
-                secondaryButton: .cancel(Text("Cancel")) { model.cancelPending() }
-            )
-        }
+    private var selectedCommit: GitCommitSummary? {
+        guard let sha = model.selectedCommit else { return nil }
+        return model.commits.first { $0.id == sha }
     }
-}
-
-// MARK: - Rebase
-
-private struct RebasePane: View {
-    @ObservedObject var model: AdvancedViewModel
-    let tokens: HostThemeTokens
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Rebase")
-                .font(AinkradFont.display(18, weight: .semibold))
-
-            fieldLabel("ONTO BRANCH")
-            Menu {
-                ForEach(model.branchNames, id: \.self) { name in
-                    Button(name) { model.rebaseBase = name }
-                }
-            } label: {
-                HUDMenuLabel(text: model.rebaseBase ?? "Choose a branch",
-                             isPlaceholder: model.rebaseBase == nil, tokens: tokens)
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-
-            AutostashToggle(isOn: $model.autostash, tokens: tokens)
-
-            GMButton("Rebase", kind: .primary, systemImage: "arrow.triangle.merge", tokens: tokens) {
-                model.requestRebase()
-            }
-            .disabled(model.isLoading || model.rebaseBase == nil || model.rebaseBase?.isEmpty == true)
-
-            Spacer()
-        }
-    }
-
-    private func fieldLabel(_ text: String) -> some View {
-        Text(text)
-            .font(AinkradFont.display(9, weight: .semibold))
-            .foregroundStyle(tokens.foreground.opacity(0.45))
-    }
-}
-
-// MARK: - Cherry-pick / Revert
-
-private struct CherryPickRevertPane: View {
-    enum Mode { case cherryPick, revert }
-
-    @ObservedObject var model: AdvancedViewModel
-    let tokens: HostThemeTokens
-    let mode: Mode
-
-    private var title: String { mode == .cherryPick ? "Cherry-pick" : "Revert" }
-    private var actionTitle: String { mode == .cherryPick ? "Apply" : "Revert" }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(AinkradFont.display(18, weight: .semibold))
-
-            CommitListView(model: model, tokens: tokens)
-
-            GMButton(actionTitle, kind: .primary,
-                     systemImage: mode == .cherryPick ? "arrow.right.circle" : "arrow.uturn.backward",
-                     tokens: tokens) {
-                Task {
-                    if mode == .cherryPick {
-                        await model.cherryPick()
-                    } else {
-                        await model.revert()
-                    }
-                }
-            }
-            .disabled(model.isLoading || model.selectedCommit == nil)
-        }
-    }
-}
-
-// MARK: - Reset
-
-private struct ResetPane: View {
-    @ObservedObject var model: AdvancedViewModel
-    let tokens: HostThemeTokens
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Reset")
-                .font(AinkradFont.display(18, weight: .semibold))
-
-            CommitListView(model: model, tokens: tokens)
-
-            HUDFilter(
-                options: ResetMode.allCases.map { ($0.rawValue.capitalized, $0) },
-                selection: $model.resetMode, tokens: tokens
-            )
-            .frame(maxWidth: 280)
-
-            AutostashToggle(isOn: $model.autostash, tokens: tokens)
-
-            GMButton("Reset", kind: .destructive, systemImage: "arrow.counterclockwise", tokens: tokens) {
-                model.requestReset()
-            }
-            .disabled(model.isLoading || model.selectedCommit == nil)
-        }
-    }
-}
-
-// MARK: - Shared commit list
-
-private struct CommitListView: View {
-    @ObservedObject var model: AdvancedViewModel
-    let tokens: HostThemeTokens
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 2) {
-                if model.commits.isEmpty {
-                    Text("No commits.")
-                        .font(AinkradFont.display(12))
-                        .foregroundStyle(tokens.foreground.opacity(0.5))
-                        .padding(12)
+            VStack(alignment: .leading, spacing: 16) {
+                if model.operationState.isActive { inProgressBanner }
+                if let errorMessage = model.errorMessage {
+                    ErrorBanner(message: errorMessage, tokens: tokens)
                 }
-                ForEach(model.commits) { commit in
-                    CommitRow(
-                        commit: commit,
-                        tokens: tokens,
-                        isSelected: model.selectedCommit == commit.id,
-                        onSelect: { model.selectedCommit = commit.id }
-                    )
-                }
+                AutostashToggle(isOn: $model.autostash, tokens: tokens)
+                commitActionsCard
+                rebaseCard
+                tagsCard
+            }
+            .padding(20)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .overlay {
+            if let pending = model.pendingConfirm {
+                HUDConfirmDialog(
+                    title: pending.title, message: pending.message,
+                    isDestructive: true, tokens: tokens,
+                    onConfirm: { Task { await model.confirmPending() } },
+                    onCancel: { model.cancelPending() }
+                )
             }
         }
-        .frame(maxHeight: 320)
-        .background(tokens.surfaceElevated.opacity(0.3), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
-}
 
-private struct CommitRow: View {
-    let commit: GitCommitSummary
-    let tokens: HostThemeTokens
-    let isSelected: Bool
-    let onSelect: () -> Void
-    @State private var hovering = false
+    // MARK: - In-progress banner
 
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "circle.fill")
-                .font(.system(size: 6))
-                .foregroundStyle(isSelected ? tokens.accentPrimary : tokens.accentSecondary.opacity(0.6))
-                .frame(width: 12)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(commit.summary)
-                    .font(AinkradFont.display(12))
-                    .foregroundStyle(tokens.foreground.opacity(isSelected ? 1 : 0.9))
-                    .lineLimit(1)
-                HStack(spacing: 8) {
-                    Text(commit.shortSHA).font(AinkradFont.mono(9, weight: .medium)).foregroundStyle(tokens.accentSecondary)
-                    Text(commit.author).font(AinkradFont.display(9)).foregroundStyle(tokens.foreground.opacity(0.5)).lineLimit(1)
-                    Text(commit.relativeDate).font(AinkradFont.display(9)).foregroundStyle(tokens.foreground.opacity(0.4))
-                }
+    private var inProgressBanner: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
+                    .foregroundStyle(tokens.accentTertiary)
+                Text(model.operationState.label)
+                    .font(AinkradFont.display(12, weight: .semibold))
             }
-            Spacer(minLength: 4)
+            Text("Resolve conflicts in Changes, then Continue.")
+                .font(AinkradFont.display(11))
+                .foregroundStyle(tokens.foreground.opacity(0.6))
+            HStack(spacing: 8) {
+                GMButton("Continue", kind: .primary, tokens: tokens) { Task { await model.continueOperation() } }
+                    .disabled(model.isLoading)
+                GMButton("Abort", kind: .destructive, tokens: tokens) { Task { await model.abortOperation() } }
+                    .disabled(model.isLoading)
+            }
         }
-        .padding(.horizontal, 9).padding(.vertical, 7)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(isSelected ? tokens.accentPrimary.opacity(0.13)
-                      : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
-        )
-        .overlay(alignment: .leading) {
-            Capsule().fill(tokens.accentPrimary).frame(width: 3, height: 16)
-                .shadow(color: tokens.accentPrimary.opacity(0.8), radius: 4)
-                .opacity(isSelected ? 1 : 0)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(tokens.accentTertiary.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(tokens.accentTertiary.opacity(0.35)))
+    }
+
+    // MARK: - Commit actions
+
+    private var commitActionsCard: some View {
+        card("SELECTED COMMIT") {
+            if let commit = selectedCommit {
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(commit.summary)
+                            .font(AinkradFont.display(13, weight: .medium))
+                            .foregroundStyle(tokens.foreground)
+                            .lineLimit(2)
+                        HStack(spacing: 8) {
+                            Text(commit.shortSHA).font(AinkradFont.mono(10, weight: .medium)).foregroundStyle(tokens.accentSecondary)
+                            Text(commit.author).font(AinkradFont.display(10)).foregroundStyle(tokens.foreground.opacity(0.5))
+                            Text(commit.relativeDate).font(AinkradFont.display(10)).foregroundStyle(tokens.foreground.opacity(0.4))
+                        }
+                    }
+
+                    HStack(spacing: 8) {
+                        GMButton("Cherry-pick", kind: .secondary, systemImage: "arrow.right.circle", tokens: tokens) {
+                            Task { await model.cherryPick() }
+                        }.disabled(model.isLoading)
+                        GMButton("Revert", kind: .secondary, systemImage: "arrow.uturn.backward", tokens: tokens) {
+                            Task { await model.revert() }
+                        }.disabled(model.isLoading)
+                        Spacer()
+                    }
+
+                    // Reset row
+                    HStack(spacing: 8) {
+                        HUDFilter(
+                            options: ResetMode.allCases.map { ($0.rawValue.capitalized, $0) },
+                            selection: $model.resetMode, tokens: tokens
+                        )
+                        .frame(maxWidth: 240)
+                        GMButton("Reset to here", kind: .destructive, systemImage: "arrow.counterclockwise", tokens: tokens) {
+                            model.requestReset()
+                        }.disabled(model.isLoading)
+                        Spacer()
+                    }
+                }
+            } else {
+                Text("Select a commit from the list to cherry-pick, revert, reset, or tag it.")
+                    .font(AinkradFont.display(12))
+                    .foregroundStyle(tokens.foreground.opacity(0.5))
+            }
         }
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onSelect)
-        .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
-        .padding(.horizontal, 4)
+    }
+
+    // MARK: - Rebase
+
+    private var rebaseCard: some View {
+        card("REBASE") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Text("Rebase \(model.currentBranchName) onto")
+                        .font(AinkradFont.display(12))
+                        .foregroundStyle(tokens.foreground.opacity(0.85))
+                    HUDMenu(
+                        tokens: tokens,
+                        items: model.branchNames.map { HUDMenuItem(id: $0, title: $0, isSelected: $0 == model.rebaseBase) },
+                        onPick: { model.rebaseBase = $0 }
+                    ) {
+                        HUDMenuLabel(text: model.rebaseBase ?? "Choose a branch",
+                                     isPlaceholder: model.rebaseBase == nil, tokens: tokens)
+                            .frame(width: 180)
+                    }
+                }
+                GMButton("Rebase", kind: .primary, systemImage: "arrow.triangle.merge", tokens: tokens) {
+                    model.requestRebase()
+                }
+                .disabled(model.isLoading || model.rebaseBase == nil || model.rebaseBase?.isEmpty == true)
+            }
+        }
+    }
+
+    // MARK: - Tags
+
+    private var tagTarget: String {
+        if let commit = selectedCommit { return commit.shortSHA }
+        return "HEAD (\(model.currentBranchName))"
+    }
+
+    private var tagsCard: some View {
+        card("TAGS") {
+            VStack(alignment: .leading, spacing: 10) {
+                if model.tags.isEmpty {
+                    Text("No tags yet.")
+                        .font(AinkradFont.display(11))
+                        .foregroundStyle(tokens.foreground.opacity(0.45))
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 3) {
+                            ForEach(model.tags) { tag in
+                                TagRow(tag: tag, tokens: tokens) { Task { await model.deleteTag(tag.name) } }
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 180)
+                }
+
+                Text("NEW TAG AT \(tagTarget)")
+                    .font(AinkradFont.display(9, weight: .semibold)).kerning(1)
+                    .foregroundStyle(tokens.foreground.opacity(0.45))
+                HUDTextField(placeholder: "Tag name", text: $model.newTagName, tokens: tokens)
+                HUDTextField(placeholder: "Message (optional)", text: $model.newTagMessage, tokens: tokens)
+                GMButton("Create tag", kind: .primary, systemImage: "tag", tokens: tokens) {
+                    Task { await model.createTag() }
+                }
+                .disabled(model.isLoading || model.newTagName.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+    }
+
+    // MARK: - Card chrome
+
+    @ViewBuilder private func card<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(AinkradFont.display(10, weight: .semibold)).kerning(2)
+                .foregroundStyle(tokens.foreground.opacity(0.5))
+            content()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(tokens.surfaceElevated.opacity(0.25)))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(tokens.foreground.opacity(0.07)))
     }
 }
 
@@ -221,60 +203,11 @@ private struct AutostashToggle: View {
 
     var body: some View {
         HStack {
-            Text("Auto-stash uncommitted changes")
+            Text("Auto-stash uncommitted changes before rebase/reset")
                 .font(AinkradFont.display(12))
                 .foregroundStyle(tokens.foreground.opacity(0.85))
             Spacer()
             NeonToggle(isOn: $isOn, tokens: tokens)
-        }
-    }
-}
-
-// MARK: - Tags
-
-private struct TagsPane: View {
-    @ObservedObject var model: AdvancedViewModel
-    let tokens: HostThemeTokens
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Tags")
-                .font(AinkradFont.display(18, weight: .semibold))
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    if model.tags.isEmpty {
-                        Text("No tags.")
-                            .font(AinkradFont.display(12))
-                            .foregroundStyle(tokens.foreground.opacity(0.5))
-                            .padding(8)
-                    }
-                    ForEach(model.tags) { tag in
-                        TagRow(tag: tag, tokens: tokens) {
-                            Task { await model.deleteTag(tag.name) }
-                        }
-                    }
-                }
-            }
-            .frame(maxHeight: 240)
-            .background(tokens.surfaceElevated.opacity(0.3), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-            createForm
-            Spacer()
-        }
-    }
-
-    private var createForm: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("NEW TAG")
-                .font(AinkradFont.display(9, weight: .semibold))
-                .foregroundStyle(tokens.foreground.opacity(0.45))
-            HUDTextField(placeholder: "Tag name", text: $model.newTagName, tokens: tokens)
-            HUDTextField(placeholder: "Message (optional)", text: $model.newTagMessage, tokens: tokens)
-            GMButton("Create", kind: .primary, systemImage: "tag", tokens: tokens) {
-                Task { await model.createTag() }
-            }
-            .disabled(model.isLoading || model.newTagName.trimmingCharacters(in: .whitespaces).isEmpty)
         }
     }
 }
@@ -287,8 +220,9 @@ private struct TagRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
+            Image(systemName: "tag").font(.system(size: 10)).foregroundStyle(tokens.accentSecondary.opacity(0.8)).frame(width: 14)
             VStack(alignment: .leading, spacing: 2) {
-                Text(tag.name).font(AinkradFont.display(12, weight: .medium))
+                Text(tag.name).font(AinkradFont.display(12, weight: .medium)).foregroundStyle(tokens.foreground.opacity(0.9))
                 if let message = tag.message, !message.isEmpty {
                     Text(message)
                         .font(AinkradFont.display(10))
@@ -305,6 +239,5 @@ private struct TagRow: View {
         .background(hovering ? tokens.surfaceElevated.opacity(0.5) : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.14), value: hovering)
     }
 }

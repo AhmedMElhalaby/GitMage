@@ -9,7 +9,6 @@ struct PullRequestDetailView: View {
 
     @State private var tab: Tab = .conversation
     @State private var composerText = ""
-    @State private var expandedFiles: Set<String> = []
 
     private enum Tab: String, CaseIterable {
         case conversation = "Conversation"
@@ -177,11 +176,13 @@ struct PullRequestDetailView: View {
 
     private var mergeMenu: some View {
         let canMerge = !(model.isLoading || model.detail?.mergeable == false)
-        return Menu {
-            ForEach(MergeMethod.allCases, id: \.self) { method in
-                Button(method.rawValue.capitalized) { Task { await model.merge(method) } }
+        return HUDMenu(
+            tokens: tokens,
+            items: MergeMethod.allCases.map { HUDMenuItem(id: $0.rawValue, title: $0.rawValue.capitalized) },
+            onPick: { raw in
+                if let method = MergeMethod(rawValue: raw) { Task { await model.merge(method) } }
             }
-        } label: {
+        ) {
             HStack(spacing: 5) {
                 Image(systemName: "arrow.triangle.merge").font(.system(size: 10, weight: .semibold))
                 Text("Merge").font(AinkradFont.display(12, weight: .medium))
@@ -195,38 +196,17 @@ struct PullRequestDetailView: View {
             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .strokeBorder(tokens.accentSecondary.opacity(0.4)))
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
         .disabled(!canMerge)
     }
 
     // MARK: - Files
 
     private var filesTab: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 6) {
-                if model.files.isEmpty {
-                    EmptyStateView(icon: "doc.on.doc", title: "No files",
-                                   message: "This pull request changes no files.", tokens: tokens)
-                        .frame(maxWidth: .infinity, minHeight: 160)
-                } else {
-                    ForEach(model.files) { file in
-                        FileDisclosureRow(
-                            file: file,
-                            isExpanded: expandedFiles.contains(file.id),
-                            tokens: tokens,
-                            fontSize: fontSize,
-                            onToggle: {
-                                if expandedFiles.contains(file.id) { expandedFiles.remove(file.id) }
-                                else { expandedFiles.insert(file.id) }
-                            }
-                        )
-                    }
-                }
-            }
-            .padding(12)
-        }
+        FileDiffList(
+            files: model.files.map { DiffFile(id: $0.filename, filename: $0.filename, status: $0.status, patch: $0.patch) },
+            tokens: tokens,
+            fontSize: fontSize
+        )
     }
 }
 
@@ -269,68 +249,3 @@ private struct PRCommitRow: View {
     }
 }
 
-/// A collapsible file row in the Files tab: click the header to reveal the diff.
-private struct FileDisclosureRow: View {
-    let file: PRFile
-    let isExpanded: Bool
-    let tokens: HostThemeTokens
-    let fontSize: Double
-    let onToggle: () -> Void
-    @State private var hovering = false
-
-    private var badgeLetter: String {
-        switch file.status.lowercased() {
-        case "added": return "A"
-        case "removed": return "D"
-        case "renamed": return "R"
-        default: return "M"
-        }
-    }
-    private var badgeColor: Color {
-        switch file.status.lowercased() {
-        case "added": return GMColor.diffAdd(tokens)
-        case "removed": return GMColor.diffRemove(tokens)
-        case "renamed": return tokens.accentSecondary
-        default: return tokens.accentTertiary
-        }
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(tokens.foreground.opacity(0.5))
-                    .frame(width: 12)
-                Text(badgeLetter)
-                    .font(AinkradFont.mono(10, weight: .bold))
-                    .foregroundStyle(badgeColor)
-                    .frame(width: 18, height: 18)
-                    .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(badgeColor.opacity(0.16)))
-                Text(file.filename)
-                    .font(AinkradFont.mono(11))
-                    .foregroundStyle(tokens.foreground.opacity(0.9))
-                    .lineLimit(1).truncationMode(.middle)
-                Spacer()
-            }
-            .padding(.horizontal, 10).padding(.vertical, 8)
-            .background(hovering ? tokens.surfaceElevated.opacity(0.5) : .clear)
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onToggle)
-            .onHover { hovering = $0 }
-
-            if isExpanded {
-                GlowRule(tokens: tokens)
-                DiffView(
-                    diff: GitDiffSnapshot(title: file.filename,
-                                          body: file.patch ?? "",
-                                          isEmpty: file.patch == nil),
-                    tokens: tokens, fontSize: fontSize, embedded: true, showHeader: false
-                )
-            }
-        }
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(tokens.surfaceElevated.opacity(0.25)))
-        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(tokens.foreground.opacity(0.07)))
-        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-    }
-}

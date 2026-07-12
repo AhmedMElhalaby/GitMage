@@ -38,15 +38,18 @@ extension GitRepositoryClient {
         return GitTagParser.parse(out)
     }
 
-    func createTag(name: String, message: String?, in path: String) throws {
+    func createTag(name: String, message: String?, at ref: String? = nil, in path: String) throws {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw GitRepositoryError.invalidTagName }
         let root = try repositoryRootURL(for: path)
+        var args: [String]
         if let message, !message.isEmpty {
-            _ = try runGit(["tag", "-a", trimmed, "-m", message], in: root)
+            args = ["tag", "-a", trimmed, "-m", message]
         } else {
-            _ = try runGit(["tag", trimmed], in: root)
+            args = ["tag", trimmed]
         }
+        if let ref, !ref.isEmpty { args.append(ref) }
+        _ = try runGit(args, in: root)
     }
 
     func deleteTag(name: String, in path: String) throws {
