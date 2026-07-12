@@ -170,17 +170,28 @@ struct DiffView: View {
         var oldLine = 0
         var newLine = 0
         var id = 0
+        // Track whether we're inside a hunk. File headers (---/+++/index/…) only
+        // appear BETWEEN `diff --git` and the first `@@`; once in a hunk, a line
+        // starting with `-`/`+` is content — even "--- foo" (SQL/Markdown) or
+        // "+++x". Prefix alone can't disambiguate, so gate headers on !inHunk.
+        var inHunk = false
         for raw in body.split(separator: "\n", omittingEmptySubsequences: false) {
             let line = String(raw)
-            if line.hasPrefix("@@") {
+
+            if line.hasPrefix("diff --git") {
+                inHunk = false
+                rows.append(Row(id: id, kind: .meta, oldNo: nil, newNo: nil, text: line))
+            } else if line.hasPrefix("@@") {
                 let (o, n) = parseHunkHeader(line)
                 oldLine = o
                 newLine = n
+                inHunk = true
                 rows.append(Row(id: id, kind: .hunk, oldNo: nil, newNo: nil, text: line))
-            } else if line.hasPrefix("+++") || line.hasPrefix("---") || line.hasPrefix("diff ")
-                        || line.hasPrefix("index ") || line.hasPrefix("new file")
-                        || line.hasPrefix("deleted file") || line.hasPrefix("similarity ")
-                        || line.hasPrefix("rename ") || line.hasPrefix("old mode") || line.hasPrefix("new mode") {
+            } else if !inHunk {
+                // Everything before a file's first hunk is header/meta.
+                rows.append(Row(id: id, kind: .meta, oldNo: nil, newNo: nil, text: line))
+            } else if line.hasPrefix("\\") {
+                // "\ No newline at end of file" — not a content line.
                 rows.append(Row(id: id, kind: .meta, oldNo: nil, newNo: nil, text: line))
             } else if line.hasPrefix("+") {
                 rows.append(Row(id: id, kind: .add, oldNo: nil, newNo: newLine, text: String(line.dropFirst())))

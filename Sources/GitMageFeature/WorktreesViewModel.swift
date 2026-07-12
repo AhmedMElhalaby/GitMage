@@ -76,11 +76,12 @@ final class WorktreesViewModel: ObservableObject {
 
     private func loadGraph(for path: String) async {
         isLoadingGraph = true
-        defer { isLoadingGraph = false }
         let commits = (try? await client.loadGraphCommits(limit: 200, in: path)) ?? []
-        // Guard against a newer selection having superseded this load.
+        // A newer selection superseded this load — leave the spinner on for it
+        // (don't flip it off here, which would flicker an empty state).
         guard selectedPath == path else { return }
         graphRows = GitGraphBuilder.build(commits)
+        isLoadingGraph = false
     }
 
     /// Loads the diff for a commit tapped in the graph.
