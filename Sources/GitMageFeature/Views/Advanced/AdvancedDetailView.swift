@@ -51,18 +51,18 @@ private struct RebasePane: View {
                     Button(name) { model.rebaseBase = name }
                 }
             } label: {
-                Text(model.rebaseBase ?? "Choose a branch")
-                    .font(AinkradFont.display(12))
-                    .foregroundStyle(tokens.foreground.opacity(0.85))
+                HUDMenuLabel(text: model.rebaseBase ?? "Choose a branch",
+                             isPlaceholder: model.rebaseBase == nil, tokens: tokens)
             }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
 
-            Toggle("Auto-stash uncommitted changes", isOn: $model.autostash)
-                .font(AinkradFont.display(12))
+            AutostashToggle(isOn: $model.autostash, tokens: tokens)
 
-            Button("Rebase") { model.requestRebase() }
-                .font(AinkradFont.display(12, weight: .medium))
-                .buttonStyle(.borderedProminent)
-                .disabled(model.isLoading || model.rebaseBase == nil || model.rebaseBase?.isEmpty == true)
+            GMButton("Rebase", kind: .primary, systemImage: "arrow.triangle.merge", tokens: tokens) {
+                model.requestRebase()
+            }
+            .disabled(model.isLoading || model.rebaseBase == nil || model.rebaseBase?.isEmpty == true)
 
             Spacer()
         }
@@ -94,7 +94,9 @@ private struct CherryPickRevertPane: View {
 
             CommitListView(model: model, tokens: tokens)
 
-            Button(actionTitle) {
+            GMButton(actionTitle, kind: .primary,
+                     systemImage: mode == .cherryPick ? "arrow.right.circle" : "arrow.uturn.backward",
+                     tokens: tokens) {
                 Task {
                     if mode == .cherryPick {
                         await model.cherryPick()
@@ -103,8 +105,6 @@ private struct CherryPickRevertPane: View {
                     }
                 }
             }
-            .font(AinkradFont.display(12, weight: .medium))
-            .buttonStyle(.borderedProminent)
             .disabled(model.isLoading || model.selectedCommit == nil)
         }
     }
@@ -123,22 +123,18 @@ private struct ResetPane: View {
 
             CommitListView(model: model, tokens: tokens)
 
-            Picker("", selection: $model.resetMode) {
-                ForEach(ResetMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue.capitalized).tag(mode)
-                }
+            HUDFilter(
+                options: ResetMode.allCases.map { ($0.rawValue.capitalized, $0) },
+                selection: $model.resetMode, tokens: tokens
+            )
+            .frame(maxWidth: 280)
+
+            AutostashToggle(isOn: $model.autostash, tokens: tokens)
+
+            GMButton("Reset", kind: .destructive, systemImage: "arrow.counterclockwise", tokens: tokens) {
+                model.requestReset()
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: 260)
-
-            Toggle("Auto-stash uncommitted changes", isOn: $model.autostash)
-                .font(AinkradFont.display(12))
-
-            Button("Reset") { model.requestReset() }
-                .font(AinkradFont.display(12, weight: .medium))
-                .buttonStyle(.borderedProminent)
-                .disabled(model.isLoading || model.selectedCommit == nil)
+            .disabled(model.isLoading || model.selectedCommit == nil)
         }
     }
 }
@@ -181,27 +177,56 @@ private struct CommitRow: View {
     @State private var hovering = false
 
     var body: some View {
-        Button(action: onSelect) {
+        HStack(spacing: 10) {
+            Image(systemName: "circle.fill")
+                .font(.system(size: 6))
+                .foregroundStyle(isSelected ? tokens.accentPrimary : tokens.accentSecondary.opacity(0.6))
+                .frame(width: 12)
             VStack(alignment: .leading, spacing: 2) {
-                Text(commit.summary).font(AinkradFont.display(12)).lineLimit(1)
+                Text(commit.summary)
+                    .font(AinkradFont.display(12))
+                    .foregroundStyle(tokens.foreground.opacity(isSelected ? 1 : 0.9))
+                    .lineLimit(1)
                 HStack(spacing: 8) {
-                    Text(commit.shortSHA).font(AinkradFont.mono(9)).foregroundStyle(tokens.accentSecondary)
-                    Text(commit.author).font(AinkradFont.display(9)).foregroundStyle(tokens.foreground.opacity(0.5))
+                    Text(commit.shortSHA).font(AinkradFont.mono(9, weight: .medium)).foregroundStyle(tokens.accentSecondary)
+                    Text(commit.author).font(AinkradFont.display(9)).foregroundStyle(tokens.foreground.opacity(0.5)).lineLimit(1)
                     Text(commit.relativeDate).font(AinkradFont.display(9)).foregroundStyle(tokens.foreground.opacity(0.4))
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 8).padding(.vertical, 6)
-            .background(
-                isSelected ? tokens.accentPrimary.opacity(0.13) : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear),
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-            )
-            .contentShape(Rectangle())
+            Spacer(minLength: 4)
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 9).padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isSelected ? tokens.accentPrimary.opacity(0.13)
+                      : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
+        )
+        .overlay(alignment: .leading) {
+            Capsule().fill(tokens.accentPrimary).frame(width: 3, height: 16)
+                .shadow(color: tokens.accentPrimary.opacity(0.8), radius: 4)
+                .opacity(isSelected ? 1 : 0)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onSelect)
         .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.14), value: hovering)
+        .animation(.easeOut(duration: 0.12), value: hovering)
         .padding(.horizontal, 4)
+    }
+}
+
+/// Labeled HUD toggle row for the auto-stash option.
+private struct AutostashToggle: View {
+    @Binding var isOn: Bool
+    let tokens: HostThemeTokens
+
+    var body: some View {
+        HStack {
+            Text("Auto-stash uncommitted changes")
+                .font(AinkradFont.display(12))
+                .foregroundStyle(tokens.foreground.opacity(0.85))
+            Spacer()
+            NeonToggle(isOn: $isOn, tokens: tokens)
+        }
     }
 }
 
@@ -244,14 +269,12 @@ private struct TagsPane: View {
             Text("NEW TAG")
                 .font(AinkradFont.display(9, weight: .semibold))
                 .foregroundStyle(tokens.foreground.opacity(0.45))
-            TextField("Tag name", text: $model.newTagName)
-                .textFieldStyle(.roundedBorder).font(AinkradFont.display(12))
-            TextField("Message (optional)", text: $model.newTagMessage)
-                .textFieldStyle(.roundedBorder).font(AinkradFont.display(12))
-            Button("Create") { Task { await model.createTag() } }
-                .font(AinkradFont.display(12, weight: .medium))
-                .buttonStyle(.borderedProminent)
-                .disabled(model.isLoading || model.newTagName.trimmingCharacters(in: .whitespaces).isEmpty)
+            HUDTextField(placeholder: "Tag name", text: $model.newTagName, tokens: tokens)
+            HUDTextField(placeholder: "Message (optional)", text: $model.newTagMessage, tokens: tokens)
+            GMButton("Create", kind: .primary, systemImage: "tag", tokens: tokens) {
+                Task { await model.createTag() }
+            }
+            .disabled(model.isLoading || model.newTagName.trimmingCharacters(in: .whitespaces).isEmpty)
         }
     }
 }
@@ -274,15 +297,11 @@ private struct TagRow: View {
                 }
             }
             Spacer()
-            if hovering {
-                Button(action: onDelete) {
-                    Image(systemName: "trash")
-                        .foregroundStyle(tokens.foreground.opacity(0.65))
-                }
-                .buttonStyle(.plain)
-            }
+            RowIconButton(symbol: "trash", help: "Delete tag", tokens: tokens, size: 20, action: onDelete)
+                .opacity(hovering ? 1 : 0)
+                .allowsHitTesting(hovering)
         }
-        .padding(.horizontal, 8).padding(.vertical, 6)
+        .padding(.horizontal, 9).padding(.vertical, 7)
         .background(hovering ? tokens.surfaceElevated.opacity(0.5) : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .contentShape(Rectangle())
         .onHover { hovering = $0 }

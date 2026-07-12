@@ -44,9 +44,9 @@ struct WorktreeDetailView: View {
             infoRow(label: "HEAD", value: wt.head, mono: true)
             infoRow(label: "Branch", value: wt.branch ?? "detached")
             infoRow(label: "Status", value: statusText(for: wt))
-            Button("Open in Git Mage") { model.open(wt) }
-                .font(AinkradFont.display(12, weight: .medium))
-                .buttonStyle(.borderedProminent)
+            GMButton("Open in Git Mage", kind: .primary, systemImage: "arrow.up.forward.square", tokens: tokens) {
+                model.open(wt)
+            }
             Spacer()
         }
         .padding(24)
@@ -95,11 +95,11 @@ private struct AddWorktreeSheet: View {
 
             HStack {
                 Spacer()
-                Button("Cancel") { model.showAdd = false }.font(AinkradFont.display(12))
-                Button("Add") { Task { await model.add(destination: destination) } }
-                    .font(AinkradFont.display(12, weight: .medium))
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!canAdd)
+                GMButton("Cancel", kind: .secondary, tokens: tokens) { model.showAdd = false }
+                GMButton("Add", kind: .primary, systemImage: "plus", tokens: tokens) {
+                    Task { await model.add(destination: destination) }
+                }
+                .disabled(!canAdd)
             }
         }
         .padding(24)
@@ -129,38 +129,37 @@ private struct AddWorktreeSheet: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer()
-                Button("Choose…") { chooseDestination() }.font(AinkradFont.display(12))
+                GMButton("Choose…", kind: .secondary, systemImage: "folder", tokens: tokens) { chooseDestination() }
             }
         }
     }
 
     private var modePicker: some View {
-        Picker("", selection: $model.addMode) {
-            Text("New branch").tag(WorktreesViewModel.AddMode.newBranch)
-            Text("Existing branch").tag(WorktreesViewModel.AddMode.existingBranch)
-            Text("Detached").tag(WorktreesViewModel.AddMode.detached)
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
+        HUDFilter(
+            options: [("New branch", WorktreesViewModel.AddMode.newBranch),
+                      ("Existing", WorktreesViewModel.AddMode.existingBranch),
+                      ("Detached", WorktreesViewModel.AddMode.detached)],
+            selection: $model.addMode, tokens: tokens
+        )
     }
 
     @ViewBuilder private var modeInput: some View {
         switch model.addMode {
         case .newBranch:
-            TextField("Branch name", text: $model.addBranchName)
-                .textFieldStyle(.roundedBorder).font(AinkradFont.display(12))
+            HUDTextField(placeholder: "Branch name", text: $model.addBranchName, tokens: tokens)
         case .existingBranch:
             Menu {
                 ForEach(model.branchNames, id: \.self) { name in
                     Button(name) { model.addExistingBranch = name }
                 }
             } label: {
-                Text(model.addExistingBranch ?? "Choose a branch")
-                    .font(AinkradFont.display(12))
+                HUDMenuLabel(text: model.addExistingBranch ?? "Choose a branch",
+                             isPlaceholder: model.addExistingBranch == nil, tokens: tokens)
             }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
         case .detached:
-            TextField("Ref (commit, tag, branch)", text: $model.addRef)
-                .textFieldStyle(.roundedBorder).font(AinkradFont.display(12))
+            HUDTextField(placeholder: "Ref (commit, tag, branch)", text: $model.addRef, tokens: tokens)
         }
     }
 

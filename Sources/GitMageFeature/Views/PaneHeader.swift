@@ -119,6 +119,52 @@ struct HUDTextEditor: View {
     }
 }
 
+/// A single-line HUD text field: plain field on a translucent surface with an
+/// accent focus border. For forms (tag name, branch name, refs, …).
+struct HUDTextField: View {
+    var placeholder: String
+    @Binding var text: String
+    let tokens: HostThemeTokens
+    var mono: Bool = false
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextField(placeholder, text: $text)
+            .textFieldStyle(.plain)
+            .font(mono ? AinkradFont.mono(12) : AinkradFont.display(12))
+            .foregroundStyle(tokens.foreground)
+            .focused($focused)
+            .padding(.horizontal, 10).padding(.vertical, 7)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tokens.surfaceElevated.opacity(0.5)))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(tokens.accentPrimary.opacity(focused ? 0.5 : 0.18)))
+    }
+}
+
+/// A HUD-styled trigger label for a `Menu` (the dropdown popup itself stays
+/// system-rendered): value/placeholder text + a chevron on a translucent chip.
+struct HUDMenuLabel: View {
+    let text: String
+    var isPlaceholder: Bool = false
+    let tokens: HostThemeTokens
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(text)
+                .font(AinkradFont.display(12))
+                .foregroundStyle(tokens.foreground.opacity(isPlaceholder ? 0.5 : 0.9))
+                .lineLimit(1)
+            Spacer(minLength: 6)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(tokens.foreground.opacity(0.4))
+        }
+        .padding(.horizontal, 10).padding(.vertical, 7)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tokens.surfaceElevated.opacity(0.5)))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(tokens.accentPrimary.opacity(0.18)))
+    }
+}
+
 /// A HUD search field: magnifier, plain field (searches on submit), clear button.
 struct HUDSearchField: View {
     @Binding var text: String
