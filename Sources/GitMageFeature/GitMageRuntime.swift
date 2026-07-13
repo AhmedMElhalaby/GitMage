@@ -14,4 +14,19 @@ enum GitMageRuntime {
         stores[key] = store
         return store
     }
+
+    private static var bridges: [ObjectIdentifier: GitMageContextBridge] = [:]
+
+    /// The per-host agent-context bridge. Created and **registered with the host
+    /// once** on first request (mirrors `settingsStore` — a Block's shell and
+    /// settings share one host, hence one bridge). Never removed: the registered
+    /// closure returns nil once the shell's view model is gone or no repo is open.
+    static func contextBridge(for host: HostServices) -> GitMageContextBridge {
+        let key = ObjectIdentifier(host as AnyObject)
+        if let existing = bridges[key] { return existing }
+        let bridge = GitMageContextBridge()
+        bridges[key] = bridge
+        _ = host.context.register { bridge.snapshot() }
+        return bridge
+    }
 }

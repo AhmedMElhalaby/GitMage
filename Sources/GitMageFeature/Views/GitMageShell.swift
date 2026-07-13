@@ -30,6 +30,7 @@ struct GitMageShell: View {
     private var appearance: GitMageRenderAppearance {
         GitMageAppearanceResolver.resolve(settings: settingsStore.settings, tokens: tokens)
     }
+    private var contextBridge: GitMageContextBridge { GitMageRuntime.contextBridge(for: host) }
 
     var body: some View {
         ZStack {
@@ -98,6 +99,8 @@ struct GitMageShell: View {
         .background(tokens.surface.opacity(appearance.backgroundOpacity))
         .foregroundStyle(tokens.foreground)
         .task { model.bootstrapIfNeeded() }
+        .onAppear { contextBridge.setActiveSource(model) }
+        .onDisappear { contextBridge.clearActiveSource(model) }
         .task(id: PRTaskKey(area: model.selectedArea, repoID: model.activeRepoID)) {
             await buildPRModelIfNeeded()
         }
