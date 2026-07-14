@@ -36,6 +36,22 @@ private func testTokens() -> HostThemeTokens {
 }
 
 @MainActor
+final class RecordingActionRegistry: AgentActionProvider {
+    private(set) var handlers: [AgentActionToken: (String) async -> AgentActionResult] = [:]
+    private(set) var ids: [AgentActionToken: String] = [:]
+    func register(actionID: String,
+                  handler: @escaping @MainActor (String) async -> AgentActionResult) -> AgentActionToken {
+        let token = AgentActionToken(); handlers[token] = handler; ids[token] = actionID; return token
+    }
+    func remove(_ token: AgentActionToken) { handlers[token] = nil; ids[token] = nil }
+    func invoke(actionID: String, input: String) async -> AgentActionResult? {
+        guard let token = ids.first(where: { $0.value == actionID })?.key,
+              let handler = handlers[token] else { return nil }
+        return await handler(input)
+    }
+}
+
+@MainActor
 final class FakeHostServices: HostServices {
     // Retain every instance so its ObjectIdentifier stays unique across the
     // never-cleared GitMageRuntime maps (a reused address could otherwise
@@ -47,8 +63,10 @@ final class FakeHostServices: HostServices {
     let theme: HostTheme = HostTheme(testTokens())
     let log: PluginLogger = FakeLogger()
     let context: PluginContextRegistry
-    init(context: PluginContextRegistry) {
+    let actions: AgentActionProvider
+    init(context: PluginContextRegistry, actions: AgentActionProvider = RecordingActionRegistry()) {
         self.context = context
+        self.actions = actions
         FakeHostServices.liveInstances.append(self)
     }
 }
@@ -101,5 +119,13 @@ final class GitMageContextRegistrationTests: XCTestCase {
         XCTAssertFalse(GitMageRuntime.contextBridge(for: h1) === GitMageRuntime.contextBridge(for: h2))
         XCTAssertEqual(r1.sources.count, 1)
         XCTAssertEqual(r2.sources.count, 1)
+    }
+
+    func testRegistersGitOpActionExactlyOnce() {
+        let actions = RecordingActionRegistry()
+        let host = FakeHostServices(context: RecordingContextRegistry(), actions: actions)
+        GitMageRuntime.registerActions(for: host)
+        GitMageRuntime.registerActions(for: host)
+        XCTAssertEqual(actions.ids.values.filter { $0 == "gitmage.git_op" }.count, 1)
     }
 }

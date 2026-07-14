@@ -1,3 +1,4 @@
+import Foundation
 import AinkradAppKit
 
 /// Bridges Git Mage's static `AinkradApp` entry points to one shared, observable
@@ -28,5 +29,20 @@ enum GitMageRuntime {
         bridges[key] = bridge
         _ = host.context.register { bridge.snapshot() }
         return bridge
+    }
+
+    private static var actionTokens: [ObjectIdentifier: AgentActionToken] = [:]
+    private static let sharedClient = GitRepositoryClient()
+
+    /// Register the host's `gitmage.git_op` handler **once**. Reuses one
+    /// `GitRepositoryClient` (path-scoped per call). Never torn down.
+    static func registerActions(for host: HostServices) {
+        let key = ObjectIdentifier(host as AnyObject)
+        guard actionTokens[key] == nil else { return }
+        let handler = GitOpActionHandler(client: sharedClient)
+        let token = host.actions.register(actionID: "gitmage.git_op") { json in
+            await handler.run(json)
+        }
+        actionTokens[key] = token
     }
 }
