@@ -15,7 +15,7 @@ rm -rf dist && mkdir -p dist
 SHA="$(shasum -a 256 dist/gitmage.bundle.zip | awk '{print $1}')"
 
 cat > dist/ainkrad-plugin.json <<JSON
-{ "id": "gitmage", "name": "Git Mage", "icon": "wand.and.stars", "description": "$DESC", "apiVersion": 2, "sha256": "$SHA",
+{ "id": "gitmage", "name": "Git Mage", "icon": "wand.and.stars", "description": "$DESC", "apiVersion": 3, "sha256": "$SHA",
   "author": "$AUTHOR", "longDescription": "$LONG_DESC",
   "links": [] }
 JSON
