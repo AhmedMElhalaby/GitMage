@@ -16,7 +16,8 @@ settings:
 
 packages:
   AinkradAppKit:
-    path: ../AinkradAppKit
+    url: https://github.com/AhmedMElhalaby/AinkradAppKit
+    revision: cf34481be5d2f633f748a448c4260daf632e5552
 
 targets:
   GitMageFeature:
