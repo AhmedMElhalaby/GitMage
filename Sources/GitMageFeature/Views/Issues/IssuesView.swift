@@ -153,7 +153,7 @@ private struct IssueRow: View {
         }
         .padding(.horizontal, 9).padding(.vertical, 7)
         .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            ChamferShape(cut: AinkradRadius.md)
                 .fill(isSelected ? tokens.accentPrimary.opacity(0.13)
                       : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
         )
@@ -183,7 +183,7 @@ struct LabelChipsRow: View {
                     .font(AinkradFont.display(9, weight: .semibold))
                     .foregroundStyle(tokens.foreground.opacity(0.7))
                     .padding(.horizontal, 5).padding(.vertical, 1)
-                    .background(tokens.surfaceElevated.opacity(0.7), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                    .background(tokens.surfaceElevated.opacity(0.7), in: ChamferShape(cut: AinkradRadius.sm))
             }
         }
     }
@@ -199,7 +199,7 @@ struct ColoredLabelChip: View {
             .font(AinkradFont.display(9, weight: .semibold))
             .foregroundStyle(Color.white.opacity(0.9))
             .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(Color(hex: label.color).opacity(0.85), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .background(Color(hex: label.color).opacity(0.85), in: ChamferShape(cut: AinkradRadius.sm))
     }
 }
 
