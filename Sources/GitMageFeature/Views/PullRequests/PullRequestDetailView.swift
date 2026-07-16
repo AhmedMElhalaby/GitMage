@@ -190,10 +190,10 @@ struct PullRequestDetailView: View {
             .foregroundStyle(.white.opacity(canMerge ? 0.95 : 0.5))
             .padding(.horizontal, 12).padding(.vertical, 7)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                ChamferShape(cut: AinkradRadius.sm)
                     .fill(tokens.accentPrimary.opacity(canMerge ? 0.9 : 0.4))
             )
-            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .overlay(ChamferShape(cut: AinkradRadius.sm)
                 .strokeBorder(tokens.accentSecondary.opacity(0.4)))
         }
         .disabled(!canMerge)
@@ -214,6 +214,7 @@ private struct PRCommitRow: View {
     let commit: PRCommit
     let tokens: HostThemeTokens
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 10) {
@@ -241,11 +242,11 @@ private struct PRCommitRow: View {
             Spacer()
         }
         .padding(.horizontal, 9).padding(.vertical, 7)
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+        .background(ChamferShape(cut: AinkradRadius.md)
             .fill(hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovering)
     }
 }
 

@@ -44,6 +44,7 @@ struct AdvancedCommitRow: View {
     let tokens: HostThemeTokens
     let onSelect: () -> Void
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 10) {
@@ -66,7 +67,7 @@ struct AdvancedCommitRow: View {
         }
         .padding(.horizontal, 9).padding(.vertical, 7)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            ChamferShape(cut: AinkradRadius.md)
                 .fill(isSelected ? tokens.accentPrimary.opacity(0.13)
                       : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
         )
@@ -78,6 +79,6 @@ struct AdvancedCommitRow: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
         .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovering)
     }
 }

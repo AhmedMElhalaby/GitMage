@@ -75,6 +75,7 @@ private struct WorktreeRow: View {
     let onToggleLock: () -> Void
     let onRemove: () -> Void
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     private var lastPathComponent: String {
         (worktree.path as NSString).lastPathComponent
@@ -95,7 +96,7 @@ private struct WorktreeRow: View {
         }
         .padding(.horizontal, 9).padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            ChamferShape(cut: AinkradRadius.md)
                 .fill(isSelected ? tokens.accentPrimary.opacity(0.13)
                       : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
         )
@@ -109,8 +110,8 @@ private struct WorktreeRow: View {
         .onTapGesture(count: 2, perform: onOpen)
         .onTapGesture(perform: onSelect)
         .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
-        .animation(.easeOut(duration: 0.14), value: isSelected)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovering)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: isSelected)
     }
 
     private var topLine: some View {
@@ -123,7 +124,7 @@ private struct WorktreeRow: View {
                     .font(AinkradFont.display(9, weight: .semibold))
                     .foregroundStyle(tokens.accentPrimary)
                     .padding(.horizontal, 5).padding(.vertical, 1)
-                    .background(tokens.accentPrimary.opacity(0.15), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                    .background(tokens.accentPrimary.opacity(0.15), in: ChamferShape(cut: AinkradRadius.sm))
             }
             Spacer()
             if worktree.isLocked {

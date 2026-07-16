@@ -62,8 +62,8 @@ struct AdvancedDetailView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(tokens.accentTertiary.opacity(0.08)))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(tokens.accentTertiary.opacity(0.35)))
+        .background(ChamferShape(cut: AinkradRadius.md).fill(tokens.accentTertiary.opacity(0.08)))
+        .overlay(ChamferShape(cut: AinkradRadius.md).strokeBorder(tokens.accentTertiary.opacity(0.35)))
     }
 
     // MARK: - Commit actions
@@ -191,8 +191,8 @@ struct AdvancedDetailView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(tokens.surfaceElevated.opacity(0.25)))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(tokens.foreground.opacity(0.07)))
+        .background(ChamferShape(cut: AinkradRadius.md).fill(tokens.surfaceElevated.opacity(0.25)))
+        .overlay(ChamferShape(cut: AinkradRadius.md).strokeBorder(tokens.foreground.opacity(0.07)))
     }
 }
 
@@ -236,7 +236,7 @@ private struct TagRow: View {
                 .allowsHitTesting(hovering)
         }
         .padding(.horizontal, 9).padding(.vertical, 7)
-        .background(hovering ? tokens.surfaceElevated.opacity(0.5) : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(hovering ? tokens.surfaceElevated.opacity(0.5) : .clear, in: ChamferShape(cut: AinkradRadius.md))
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
     }

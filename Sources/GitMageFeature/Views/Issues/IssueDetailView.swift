@@ -39,9 +39,10 @@ struct IssueDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .sheet(isPresented: $model.showNew) {
-            NewIssueSheet(model: model, tokens: tokens)
-        }
+        // The "New Issue" modal is hosted once at the Issues area root
+        // (`IssuesContextPane`), which shares this `IssuesViewModel`. Any
+        // `model.showNew = true` (the context pane's "+" button, or the view
+        // model itself) triggers that single modal — no duplicate here.
     }
 
     private func header(_ detail: IssueDetail) -> some View {

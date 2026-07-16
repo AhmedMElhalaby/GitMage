@@ -30,6 +30,15 @@ private final class FakeLogger: PluginLogger {
     func info(_ message: String) {}
     func error(_ message: String) {}
 }
+@MainActor private final class FakeAppLauncher: PluginAppLauncher {
+    func open(appID: String, payload: String?) {}
+    func takePendingLaunch() -> String? { nil }
+}
+@MainActor private final class FakePresentation: PluginPresentationControl {
+    var current: PluginPresentation = .pane
+    func set(_ presentation: PluginPresentation) { current = presentation }
+    func reset() { current = .pane }
+}
 private func testTokens() -> HostThemeTokens {
     HostThemeTokens(themeID: "test", background: .black, surface: .black, surfaceElevated: .black,
                     accentPrimary: .black, accentSecondary: .black, accentTertiary: .black, foreground: .black)
@@ -62,6 +71,8 @@ final class FakeHostServices: HostServices {
     let secrets: PluginSecretStore = FakeSecrets()
     let theme: HostTheme = HostTheme(testTokens())
     let log: PluginLogger = FakeLogger()
+    let apps: PluginAppLauncher = FakeAppLauncher()
+    let presentation: PluginPresentationControl = FakePresentation()
     let context: PluginContextRegistry
     let actions: AgentActionProvider
     init(context: PluginContextRegistry, actions: AgentActionProvider = RecordingActionRegistry()) {

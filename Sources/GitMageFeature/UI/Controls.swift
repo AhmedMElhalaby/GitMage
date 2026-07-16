@@ -9,7 +9,7 @@ struct SettingsSectionHeader: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 1)
+            ChamferShape(cut: AinkradRadius.sm)
                 .fill(tokens.accentSecondary)
                 .frame(width: 3, height: 12)
                 .shadow(color: tokens.accentSecondary.opacity(0.8), radius: 4)
@@ -29,30 +29,10 @@ struct NeonToggle: View {
     let tokens: HostThemeTokens
 
     var body: some View {
-        Button {
-            isOn.toggle()
-        } label: {
-            ZStack(alignment: isOn ? .trailing : .leading) {
-                Capsule()
-                    .fill(isOn ? tokens.accentPrimary.opacity(0.9) : tokens.surface)
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(
-                                isOn ? tokens.accentSecondary.opacity(0.65) : tokens.foreground.opacity(0.18),
-                                lineWidth: 1
-                            )
-                    )
-
-                Circle()
-                    .fill(.white)
-                    .padding(3)
-                    .shadow(color: isOn ? tokens.accentSecondary.opacity(0.7) : .black.opacity(0.4), radius: 3)
-            }
-            .frame(width: 40, height: 22)
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .animation(.easeOut(duration: 0.16), value: isOn)
+        // Kit toggle: chamfered track + luminous thumb; on-tint is the kit's
+        // accentPrimary, matching the previous NeonToggle on-state. `tokens` is
+        // retained on the API so call sites stay untouched.
+        AinkradToggle(isOn: $isOn)
     }
 }
 

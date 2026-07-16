@@ -11,20 +11,10 @@ struct EmptyStateView: View {
     let tokens: HostThemeTokens
 
     var body: some View {
-        VStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.system(size: 28, weight: .light))
-                .foregroundStyle(tokens.accentPrimary.opacity(0.7))
-            Text(title)
-                .font(AinkradFont.display(13, weight: .semibold))
-                .foregroundStyle(tokens.foreground.opacity(0.85))
-            Text(message)
-                .font(AinkradFont.display(11))
-                .foregroundStyle(tokens.foreground.opacity(0.5))
-                .multilineTextAlignment(.center)
-        }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Adopt the kit empty-state (clean 1:1 for the icon/title/message
+        // contract; no call site takes an action). `tokens` retained on the
+        // API so call sites stay untouched — the kit reads the injected theme.
+        AinkradEmptyState(icon: icon, title: title, message: message)
     }
 }
 
@@ -47,7 +37,7 @@ struct ErrorBanner: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 8)
+            ChamferShape(cut: AinkradRadius.sm)
                 .fill(tokens.accentTertiary.opacity(0.12))
         )
     }
@@ -61,8 +51,7 @@ struct LoadingRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            ProgressView()
-                .controlSize(.small)
+            AinkradSpinner(size: 14)
             Text(text)
                 .font(AinkradFont.display(11))
                 .foregroundStyle(tokens.foreground.opacity(0.6))

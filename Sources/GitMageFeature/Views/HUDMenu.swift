@@ -24,7 +24,7 @@ struct HUDMenu<Trigger: View>: View {
     var body: some View {
         Button { open.toggle() } label: { trigger() }
             .buttonStyle(.plain)
-            .popover(isPresented: $open, arrowEdge: .bottom) {
+            .ainkradPopover(isPresented: $open) {
                 ScrollView {
                     VStack(spacing: 1) {
                         if items.isEmpty {
@@ -41,10 +41,8 @@ struct HUDMenu<Trigger: View>: View {
                             }
                         }
                     }
-                    .padding(6)
                 }
-                .frame(minWidth: 190, maxHeight: 320)
-                .background(tokens.surface)
+                .frame(minWidth: 190, maxHeight: 300)
             }
     }
 }
@@ -75,7 +73,7 @@ private struct HUDMenuRow: View {
             .padding(.horizontal, 9).padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                ChamferShape(cut: AinkradRadius.sm)
                     .fill(hovering ? tokens.accentPrimary.opacity(0.12) : .clear)
             )
             .contentShape(Rectangle())

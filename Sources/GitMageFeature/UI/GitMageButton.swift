@@ -22,6 +22,7 @@ struct GMButton: View {
 
     @State private var isHovering = false
     @State private var isPressed = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     init(
         _ title: String,
@@ -60,7 +61,7 @@ struct GMButton: View {
         .buttonStyle(.plain)
         .hudTooltip(tooltip ?? "", edge: .bottom, active: isHovering)
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.14)) {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) {
                 isHovering = hovering
             }
         }
@@ -69,7 +70,7 @@ struct GMButton: View {
                 .onChanged { _ in isPressed = true }
                 .onEnded { _ in isPressed = false }
         )
-        .animation(.easeOut(duration: 0.14), value: isHovering)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: isHovering)
     }
 
     /// Maps the semantic kind onto the shared HUD button surface used across

@@ -146,7 +146,7 @@ struct FileDisclosureRow: View {
                     .font(AinkradFont.mono(10, weight: .bold))
                     .foregroundStyle(badgeColor)
                     .frame(width: 18, height: 18)
-                    .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(badgeColor.opacity(0.16)))
+                    .background(ChamferShape(cut: AinkradRadius.sm).fill(badgeColor.opacity(0.16)))
                 Text(filename.isEmpty ? "(diff)" : filename)
                     .font(AinkradFont.mono(11))
                     .foregroundStyle(tokens.foreground.opacity(0.9))
@@ -167,8 +167,8 @@ struct FileDisclosureRow: View {
                 )
             }
         }
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(tokens.surfaceElevated.opacity(0.25)))
-        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(tokens.foreground.opacity(0.07)))
-        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .background(ChamferShape(cut: AinkradRadius.md).fill(tokens.surfaceElevated.opacity(0.25)))
+        .overlay(ChamferShape(cut: AinkradRadius.md).strokeBorder(tokens.foreground.opacity(0.07)))
+        .clipShape(ChamferShape(cut: AinkradRadius.md))
     }
 }

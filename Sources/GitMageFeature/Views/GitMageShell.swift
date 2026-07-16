@@ -13,6 +13,7 @@ struct GitMageShell: View {
     @State private var advancedModel: AdvancedViewModel?
     @State private var management: GitMageManagementKind?
     @Namespace private var navNamespace
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     init(host: HostServices, settingsStore: GitMageSettingsStore) {
         self.host = host
@@ -74,7 +75,7 @@ struct GitMageShell: View {
                     model: model,
                     tokens: tokens,
                     kind: management,
-                    dismiss: { withAnimation(.easeOut(duration: 0.16)) { self.management = nil } }
+                    dismiss: { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) { self.management = nil } }
                 )
             }
 
@@ -88,7 +89,7 @@ struct GitMageShell: View {
                 )
             }
         }
-        .animation(.spring(response: 0.32, dampingFraction: 0.85), value: management)
+        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.85), value: management)
         .background(
             ShortcutLayer(
                 shortcuts: settingsStore.settings.shortcuts,
@@ -116,7 +117,7 @@ struct GitMageShell: View {
         .task(id: AdvancedTaskKey(isActive: model.selectedArea == .advanced, repoID: model.activeRepoID)) {
             await buildAdvancedModelIfNeeded()
         }
-        .sheet(isPresented: $model.showClonePrompt) { cloneSheet }
+        .ainkradModal(isPresented: $model.showClonePrompt) { cloneSheet }
     }
 
     private var topBar: some View {
@@ -155,7 +156,7 @@ struct GitMageShell: View {
     }
 
     private func openManagement(_ kind: GitMageManagementKind) {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) { management = kind }
+        withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.85)) { management = kind }
     }
 
     /// Central handler for every keyboard-dispatched command.
@@ -168,7 +169,7 @@ struct GitMageShell: View {
         case .push: model.push()
         default:
             if let area = command.area {
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.74)) { model.selectArea(area) }
+                withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.74)) { model.selectArea(area) }
             }
         }
     }
@@ -190,7 +191,7 @@ struct GitMageShell: View {
         .padding(.vertical, 14)
         .frame(width: 56)
         .frame(maxHeight: .infinity)
-        .animation(.spring(response: 0.32, dampingFraction: 0.74), value: model.selectedArea)
+        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.74), value: model.selectedArea)
     }
 
     @ViewBuilder private var contextPane: some View {
@@ -389,18 +390,17 @@ struct GitMageShell: View {
             Text("Clone a Repository").font(AinkradFont.display(18, weight: .semibold))
             Text("Enter a Git remote URL. You'll then choose a destination folder.")
                 .font(AinkradFont.display(12)).foregroundStyle(tokens.foreground.opacity(0.7))
-            TextField("https://github.com/owner/repo.git", text: $model.cloneRemoteURL)
-                .textFieldStyle(.roundedBorder).font(AinkradFont.mono(12)).frame(minWidth: 380)
+            HUDTextField(placeholder: "https://github.com/owner/repo.git",
+                         text: $model.cloneRemoteURL, tokens: tokens, mono: true)
+                .frame(minWidth: 380)
             HStack {
                 Spacer()
-                Button("Cancel") { model.showClonePrompt = false }.font(AinkradFont.display(12))
-                Button("Choose Destination & Clone") { model.performClone() }
-                    .font(AinkradFont.display(12, weight: .medium))
-                    .buttonStyle(.borderedProminent)
+                GMButton("Cancel", kind: .secondary, tokens: tokens) { model.showClonePrompt = false }
+                GMButton("Choose Destination & Clone", kind: .primary, tokens: tokens) { model.performClone() }
                     .disabled(model.cloneRemoteURL.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
-        .padding(24).frame(minWidth: 440)
-        .background(tokens.background).foregroundStyle(tokens.foreground)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .foregroundStyle(tokens.foreground)
     }
 }

@@ -53,9 +53,9 @@ struct DiscussionCard: View {
             .padding(12)
         }
         .background(tokens.surface.opacity(0.4))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(ChamferShape(cut: AinkradRadius.md))
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            ChamferShape(cut: AinkradRadius.md)
                 .strokeBorder(isPrimary ? tokens.accentPrimary.opacity(0.3) : tokens.foreground.opacity(0.08))
         )
     }

@@ -44,11 +44,11 @@ struct HUDTooltipLabel: View {
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
             .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                ChamferShape(cut: AinkradRadius.sm)
                     .fill(tokens.background.opacity(0.96))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                ChamferShape(cut: AinkradRadius.sm)
                     .strokeBorder(
                         LinearGradient(
                             colors: [tokens.accentSecondary.opacity(0.55), tokens.accentPrimary.opacity(0.25)],
@@ -116,6 +116,7 @@ struct TopBarChip: View {
     let tokens: HostThemeTokens
     let action: () -> Void
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: action) {
@@ -139,7 +140,7 @@ struct TopBarChip: View {
         }
         .buttonStyle(.plain)
         .hudTooltip(shortcutTooltip(tooltip ?? label, shortcut), edge: .bottom, active: hovering)
-        .onHover { h in withAnimation(.easeOut(duration: 0.14)) { hovering = h } }
+        .onHover { h in withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) { hovering = h } }
     }
 }
 
@@ -162,6 +163,7 @@ struct TopBarActionButton: View {
     let tokens: HostThemeTokens
     let action: () -> Void
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     private var iconTint: Color {
         isPrimary ? .white.opacity(0.95) : tokens.accentSecondary
@@ -193,7 +195,7 @@ struct TopBarActionButton: View {
         .buttonStyle(.plain)
         .disabled(isLoading)
         .hudTooltip(shortcutTooltip(label, shortcut), edge: .bottom, active: hovering)
-        .onHover { h in withAnimation(.easeOut(duration: 0.14)) { hovering = h } }
+        .onHover { h in withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) { hovering = h } }
     }
 }
 
@@ -206,8 +208,9 @@ private struct HUDButtonSurface: ViewModifier {
     let kind: HUDButtonKind
     let hovering: Bool
 
-    private let radius: CGFloat = 9
-    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: radius, style: .continuous) }
+    // Single choke point: chamfering here cascades to every top-bar chip /
+    // action button / GMButton that finishes with `.hudButtonSurface`.
+    private var shape: ChamferShape { ChamferShape(cut: AinkradRadius.sm) }
 
     func body(content: Content) -> some View {
         content
@@ -308,6 +311,7 @@ struct NavRailItem: View {
     var shortcut: String? = nil
     let action: () -> Void
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: action) {
@@ -326,10 +330,10 @@ struct NavRailItem: View {
 
                 ZStack {
                     if isActive {
-                        RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        ChamferShape(cut: AinkradRadius.md)
                             .fill(tokens.accentPrimary.opacity(0.16))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                ChamferShape(cut: AinkradRadius.md)
                                     .strokeBorder(
                                         LinearGradient(
                                             colors: [tokens.accentSecondary.opacity(0.6),
@@ -342,7 +346,7 @@ struct NavRailItem: View {
                             .shadow(color: tokens.accentPrimary.opacity(0.4), radius: 8)
                             .matchedGeometryEffect(id: "navTile", in: namespace)
                     } else if hovering {
-                        RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        ChamferShape(cut: AinkradRadius.md)
                             .fill(tokens.surfaceElevated.opacity(0.5))
                     }
 
@@ -359,7 +363,7 @@ struct NavRailItem: View {
         }
         .buttonStyle(.plain)
         .hudTooltip(shortcutTooltip(area.title, shortcut), edge: .trailing, active: hovering)
-        .onHover { h in withAnimation(.easeOut(duration: 0.14)) { hovering = h } }
+        .onHover { h in withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) { hovering = h } }
     }
 }
 
@@ -401,6 +405,7 @@ struct GMSpinner: View {
     let tint: Color
     var size: CGFloat = 13
     @State private var spin = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     var body: some View {
         Circle()
@@ -415,6 +420,7 @@ struct GMSpinner: View {
             .frame(width: size, height: size)
             .rotationEffect(.degrees(spin ? 360 : 0))
             .onAppear {
+                guard !reduceMotion else { return }
                 withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) {
                     spin = true
                 }

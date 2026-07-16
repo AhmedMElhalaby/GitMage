@@ -14,16 +14,9 @@ struct NewIssueSheet: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("New Issue").font(AinkradFont.display(18, weight: .semibold))
 
-            TextField("Title", text: $model.newTitle)
-                .textFieldStyle(.roundedBorder)
-                .font(AinkradFont.display(12))
+            HUDTextField(placeholder: "Title", text: $model.newTitle, tokens: tokens)
 
-            TextEditor(text: $model.newBody)
-                .font(AinkradFont.display(12))
-                .frame(height: 120)
-                .scrollContentBackground(.hidden)
-                .padding(6)
-                .background(tokens.surfaceElevated.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            HUDTextEditor(text: $model.newBody, placeholder: "Description…", tokens: tokens, height: 120)
 
             HStack(spacing: 10) {
                 labelsMenu
@@ -32,16 +25,13 @@ struct NewIssueSheet: View {
 
             HStack {
                 Spacer()
-                Button("Cancel") { model.showNew = false }.font(AinkradFont.display(12))
-                Button("Create") { Task { await model.create() } }
-                    .font(AinkradFont.display(12, weight: .medium))
-                    .buttonStyle(.borderedProminent)
+                GMButton("Cancel", kind: .secondary, tokens: tokens) { model.showNew = false }
+                GMButton("Create", kind: .primary, tokens: tokens) { Task { await model.create() } }
                     .disabled(!canCreate || model.isLoading)
             }
         }
-        .padding(24)
-        .frame(minWidth: 420)
-        .background(tokens.background).foregroundStyle(tokens.foreground)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .foregroundStyle(tokens.foreground)
     }
 
     private var labelsMenu: some View {

@@ -55,9 +55,9 @@ private extension View {
     func hudPanelChrome(_ tokens: HostThemeTokens) -> some View {
         self
             .background(tokens.background.opacity(0.94))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(ChamferShape(cut: AinkradRadius.panel))
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                ChamferShape(cut: AinkradRadius.panel)
                     .strokeBorder(
                         LinearGradient(
                             colors: [tokens.accentSecondary.opacity(0.55),
@@ -262,6 +262,7 @@ private struct RepoCard: View {
     let onSelect: () -> Void
     let onRemove: () -> Void
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -299,12 +300,12 @@ private struct RepoCard: View {
         .frame(height: 96, alignment: .topLeading)
         .frame(maxWidth: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            ChamferShape(cut: AinkradRadius.md)
                 .fill(isActive ? tokens.accentPrimary.opacity(0.10)
                       : tokens.surfaceElevated.opacity(hovering || isSelected ? 0.7 : 0.4))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            ChamferShape(cut: AinkradRadius.md)
                 .strokeBorder(isActive ? tokens.accentPrimary.opacity(0.55)
                               : tokens.foreground.opacity(hovering ? 0.14 : 0.06),
                               lineWidth: isActive ? 1.2 : 1)
@@ -316,7 +317,7 @@ private struct RepoCard: View {
         )
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
-        .onHover { h in withAnimation(.easeOut(duration: 0.14)) { hovering = h } }
+        .onHover { h in withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) { hovering = h } }
     }
 }
 
@@ -443,6 +444,7 @@ private struct BranchRow: View {
     let onCheckout: () -> Void
     let onDelete: () -> Void
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 12) {
@@ -483,7 +485,7 @@ private struct BranchRow: View {
         .padding(.horizontal, 12)
         .frame(height: 46)
         .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            ChamferShape(cut: AinkradRadius.sm)
                 .fill(branch.isCurrent ? tokens.accentPrimary.opacity(0.09)
                       : ((hovering || isSelected) ? tokens.accentPrimary.opacity(0.10) : .clear))
         )
@@ -494,6 +496,6 @@ private struct BranchRow: View {
         )
         .contentShape(Rectangle())
         .onTapGesture { if !branch.isCurrent { onCheckout() } }
-        .onHover { h in withAnimation(.easeOut(duration: 0.14)) { hovering = h } }
+        .onHover { h in withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) { hovering = h } }
     }
 }

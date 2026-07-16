@@ -10,6 +10,7 @@ struct SelectableRow<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: action) {
@@ -18,14 +19,14 @@ struct SelectableRow<Content: View>: View {
                 .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
-                    RoundedRectangle(cornerRadius: isSelected ? 8 : 10)
+                    ChamferShape(cut: AinkradRadius.md)
                         .fill(backgroundColor)
                 )
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { isHovering in
-            withAnimation(.easeOut(duration: 0.14)) {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) {
                 hovering = isHovering
             }
         }
