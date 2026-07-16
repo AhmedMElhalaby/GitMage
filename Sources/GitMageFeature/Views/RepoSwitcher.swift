@@ -116,6 +116,7 @@ struct TopBarChip: View {
     let tokens: HostThemeTokens
     let action: () -> Void
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: action) {
@@ -139,7 +140,7 @@ struct TopBarChip: View {
         }
         .buttonStyle(.plain)
         .hudTooltip(shortcutTooltip(tooltip ?? label, shortcut), edge: .bottom, active: hovering)
-        .onHover { h in withAnimation(.easeOut(duration: 0.14)) { hovering = h } }
+        .onHover { h in withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) { hovering = h } }
     }
 }
 
@@ -162,6 +163,7 @@ struct TopBarActionButton: View {
     let tokens: HostThemeTokens
     let action: () -> Void
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     private var iconTint: Color {
         isPrimary ? .white.opacity(0.95) : tokens.accentSecondary
@@ -193,7 +195,7 @@ struct TopBarActionButton: View {
         .buttonStyle(.plain)
         .disabled(isLoading)
         .hudTooltip(shortcutTooltip(label, shortcut), edge: .bottom, active: hovering)
-        .onHover { h in withAnimation(.easeOut(duration: 0.14)) { hovering = h } }
+        .onHover { h in withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) { hovering = h } }
     }
 }
 
@@ -309,6 +311,7 @@ struct NavRailItem: View {
     var shortcut: String? = nil
     let action: () -> Void
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: action) {
@@ -360,7 +363,7 @@ struct NavRailItem: View {
         }
         .buttonStyle(.plain)
         .hudTooltip(shortcutTooltip(area.title, shortcut), edge: .trailing, active: hovering)
-        .onHover { h in withAnimation(.easeOut(duration: 0.14)) { hovering = h } }
+        .onHover { h in withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) { hovering = h } }
     }
 }
 
@@ -402,6 +405,7 @@ struct GMSpinner: View {
     let tint: Color
     var size: CGFloat = 13
     @State private var spin = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     var body: some View {
         Circle()
@@ -416,6 +420,7 @@ struct GMSpinner: View {
             .frame(width: size, height: size)
             .rotationEffect(.degrees(spin ? 360 : 0))
             .onAppear {
+                guard !reduceMotion else { return }
                 withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) {
                     spin = true
                 }

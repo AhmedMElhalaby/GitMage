@@ -44,6 +44,7 @@ struct AdvancedCommitRow: View {
     let tokens: HostThemeTokens
     let onSelect: () -> Void
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 10) {
@@ -78,6 +79,6 @@ struct AdvancedCommitRow: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
         .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovering)
     }
 }

@@ -214,6 +214,7 @@ private struct PRCommitRow: View {
     let commit: PRCommit
     let tokens: HostThemeTokens
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 10) {
@@ -245,7 +246,7 @@ private struct PRCommitRow: View {
             .fill(hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovering)
     }
 }
 

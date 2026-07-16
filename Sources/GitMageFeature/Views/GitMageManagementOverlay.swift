@@ -262,6 +262,7 @@ private struct RepoCard: View {
     let onSelect: () -> Void
     let onRemove: () -> Void
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -316,7 +317,7 @@ private struct RepoCard: View {
         )
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
-        .onHover { h in withAnimation(.easeOut(duration: 0.14)) { hovering = h } }
+        .onHover { h in withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) { hovering = h } }
     }
 }
 
@@ -443,6 +444,7 @@ private struct BranchRow: View {
     let onCheckout: () -> Void
     let onDelete: () -> Void
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 12) {
@@ -494,6 +496,6 @@ private struct BranchRow: View {
         )
         .contentShape(Rectangle())
         .onTapGesture { if !branch.isCurrent { onCheckout() } }
-        .onHover { h in withAnimation(.easeOut(duration: 0.14)) { hovering = h } }
+        .onHover { h in withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) { hovering = h } }
     }
 }

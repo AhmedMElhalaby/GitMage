@@ -13,6 +13,7 @@ struct GitMageShell: View {
     @State private var advancedModel: AdvancedViewModel?
     @State private var management: GitMageManagementKind?
     @Namespace private var navNamespace
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     init(host: HostServices, settingsStore: GitMageSettingsStore) {
         self.host = host
@@ -74,7 +75,7 @@ struct GitMageShell: View {
                     model: model,
                     tokens: tokens,
                     kind: management,
-                    dismiss: { withAnimation(.easeOut(duration: 0.16)) { self.management = nil } }
+                    dismiss: { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) { self.management = nil } }
                 )
             }
 
@@ -88,7 +89,7 @@ struct GitMageShell: View {
                 )
             }
         }
-        .animation(.spring(response: 0.32, dampingFraction: 0.85), value: management)
+        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.85), value: management)
         .background(
             ShortcutLayer(
                 shortcuts: settingsStore.settings.shortcuts,
@@ -155,7 +156,7 @@ struct GitMageShell: View {
     }
 
     private func openManagement(_ kind: GitMageManagementKind) {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) { management = kind }
+        withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.85)) { management = kind }
     }
 
     /// Central handler for every keyboard-dispatched command.
@@ -168,7 +169,7 @@ struct GitMageShell: View {
         case .push: model.push()
         default:
             if let area = command.area {
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.74)) { model.selectArea(area) }
+                withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.74)) { model.selectArea(area) }
             }
         }
     }
@@ -190,7 +191,7 @@ struct GitMageShell: View {
         .padding(.vertical, 14)
         .frame(width: 56)
         .frame(maxHeight: .infinity)
-        .animation(.spring(response: 0.32, dampingFraction: 0.74), value: model.selectedArea)
+        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.74), value: model.selectedArea)
     }
 
     @ViewBuilder private var contextPane: some View {

@@ -10,6 +10,7 @@ struct SelectableRow<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: action) {
@@ -25,7 +26,7 @@ struct SelectableRow<Content: View>: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovering in
-            withAnimation(.easeOut(duration: 0.14)) {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) {
                 hovering = isHovering
             }
         }

@@ -83,6 +83,7 @@ private struct BranchPaneRow: View {
     let onCheckout: () -> Void
     let onDelete: () -> Void
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 10) {
@@ -139,7 +140,7 @@ private struct BranchPaneRow: View {
         .onTapGesture(count: 2, perform: onCheckout)
         .onTapGesture(perform: onSelect)
         .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
-        .animation(.easeOut(duration: 0.14), value: isSelected)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovering)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: isSelected)
     }
 }

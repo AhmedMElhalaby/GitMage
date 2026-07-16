@@ -87,6 +87,7 @@ struct ChangeRow: View {
     let onUnstage: () -> Void
     let onDiscard: () -> Void
     @State private var hovering = false
+    @Environment(\.ainkradReduceMotion) private var reduceMotion
 
     private var fileName: String { (change.path as NSString).lastPathComponent }
     private var directory: String {
@@ -176,8 +177,8 @@ struct ChangeRow: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
         .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
-        .animation(.easeOut(duration: 0.14), value: isSelected)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovering)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: isSelected)
     }
 }
 
