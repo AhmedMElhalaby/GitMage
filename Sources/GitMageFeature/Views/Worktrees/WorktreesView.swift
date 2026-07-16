@@ -95,7 +95,7 @@ private struct WorktreeRow: View {
         }
         .padding(.horizontal, 9).padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            ChamferShape(cut: AinkradRadius.md)
                 .fill(isSelected ? tokens.accentPrimary.opacity(0.13)
                       : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
         )
@@ -123,7 +123,7 @@ private struct WorktreeRow: View {
                     .font(AinkradFont.display(9, weight: .semibold))
                     .foregroundStyle(tokens.accentPrimary)
                     .padding(.horizontal, 5).padding(.vertical, 1)
-                    .background(tokens.accentPrimary.opacity(0.15), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                    .background(tokens.accentPrimary.opacity(0.15), in: ChamferShape(cut: AinkradRadius.sm))
             }
             Spacer()
             if worktree.isLocked {
