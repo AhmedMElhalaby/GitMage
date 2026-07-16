@@ -57,8 +57,8 @@ struct BranchesContextPane: View {
                     .onSubmit(create)
             }
             .padding(.horizontal, 10).padding(.vertical, 7)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tokens.surfaceElevated.opacity(0.5)))
-            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .background(ChamferShape(cut: AinkradRadius.sm).fill(tokens.surfaceElevated.opacity(0.5)))
+            .overlay(ChamferShape(cut: AinkradRadius.sm)
                 .strokeBorder(tokens.accentPrimary.opacity(creating ? 0.5 : 0.18)))
 
             RowIconButton(symbol: "arrow.branch", help: "Create branch", tokens: tokens, action: create)
@@ -124,7 +124,7 @@ private struct BranchPaneRow: View {
         }
         .padding(.horizontal, 9).padding(.vertical, 7)
         .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            ChamferShape(cut: AinkradRadius.md)
                 .fill(isSelected ? tokens.accentPrimary.opacity(0.13)
                       : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
         )

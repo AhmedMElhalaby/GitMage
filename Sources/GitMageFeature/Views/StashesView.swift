@@ -86,7 +86,7 @@ private struct StashRow: View {
         }
         .padding(.horizontal, 9).padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            ChamferShape(cut: AinkradRadius.md)
                 .fill(isSelected ? tokens.accentPrimary.opacity(0.13)
                       : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
         )

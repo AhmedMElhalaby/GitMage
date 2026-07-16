@@ -123,11 +123,11 @@ struct ChangeRow: View {
                 .foregroundStyle(badgeColor)
                 .frame(width: 20, height: 20)
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    ChamferShape(cut: AinkradRadius.sm)
                         .fill(badgeColor.opacity(0.16))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    ChamferShape(cut: AinkradRadius.sm)
                         .strokeBorder(badgeColor.opacity(0.35), lineWidth: 0.5)
                 )
 
@@ -160,7 +160,7 @@ struct ChangeRow: View {
         }
         .padding(.horizontal, 9).padding(.vertical, 7)
         .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            ChamferShape(cut: AinkradRadius.md)
                 .fill(isSelected ? accent.opacity(0.13)
                       : (hovering ? tokens.surfaceElevated.opacity(0.5) : .clear))
         )
@@ -255,11 +255,11 @@ struct CommitBox: View {
                 }
             }
             .background(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                ChamferShape(cut: AinkradRadius.sm)
                     .fill(tokens.surfaceElevated.opacity(0.5))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                ChamferShape(cut: AinkradRadius.sm)
                     .strokeBorder(accent.opacity(editorFocused ? 0.6 : 0.2),
                                   lineWidth: editorFocused ? 1.2 : 1)
             )
