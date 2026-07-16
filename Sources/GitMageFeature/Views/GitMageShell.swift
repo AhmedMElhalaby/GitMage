@@ -116,7 +116,7 @@ struct GitMageShell: View {
         .task(id: AdvancedTaskKey(isActive: model.selectedArea == .advanced, repoID: model.activeRepoID)) {
             await buildAdvancedModelIfNeeded()
         }
-        .sheet(isPresented: $model.showClonePrompt) { cloneSheet }
+        .ainkradModal(isPresented: $model.showClonePrompt) { cloneSheet }
     }
 
     private var topBar: some View {
@@ -389,18 +389,17 @@ struct GitMageShell: View {
             Text("Clone a Repository").font(AinkradFont.display(18, weight: .semibold))
             Text("Enter a Git remote URL. You'll then choose a destination folder.")
                 .font(AinkradFont.display(12)).foregroundStyle(tokens.foreground.opacity(0.7))
-            TextField("https://github.com/owner/repo.git", text: $model.cloneRemoteURL)
-                .textFieldStyle(.roundedBorder).font(AinkradFont.mono(12)).frame(minWidth: 380)
+            HUDTextField(placeholder: "https://github.com/owner/repo.git",
+                         text: $model.cloneRemoteURL, tokens: tokens, mono: true)
+                .frame(minWidth: 380)
             HStack {
                 Spacer()
-                Button("Cancel") { model.showClonePrompt = false }.font(AinkradFont.display(12))
-                Button("Choose Destination & Clone") { model.performClone() }
-                    .font(AinkradFont.display(12, weight: .medium))
-                    .buttonStyle(.borderedProminent)
+                GMButton("Cancel", kind: .secondary, tokens: tokens) { model.showClonePrompt = false }
+                GMButton("Choose Destination & Clone", kind: .primary, tokens: tokens) { model.performClone() }
                     .disabled(model.cloneRemoteURL.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
-        .padding(24).frame(minWidth: 440)
-        .background(tokens.background).foregroundStyle(tokens.foreground)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .foregroundStyle(tokens.foreground)
     }
 }

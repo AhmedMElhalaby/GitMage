@@ -43,10 +43,10 @@ struct HUDConfirmDialog: View {
             .padding(18)
             .frame(width: 380)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous).fill(tokens.surface)
+                ChamferShape(cut: AinkradRadius.panel).fill(tokens.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                ChamferShape(cut: AinkradRadius.panel)
                     .strokeBorder(
                         LinearGradient(
                             colors: [(isDestructive ? tokens.accentTertiary : tokens.accentSecondary).opacity(0.55),

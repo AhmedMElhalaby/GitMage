@@ -24,7 +24,7 @@ struct IssuesContextPane: View {
                 list
             }
         }
-        .sheet(isPresented: $model.showNew) {
+        .ainkradModal(isPresented: $model.showNew) {
             NewIssueSheet(model: model, tokens: tokens)
         }
     }

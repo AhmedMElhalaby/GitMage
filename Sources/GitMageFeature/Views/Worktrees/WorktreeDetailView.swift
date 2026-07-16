@@ -21,7 +21,7 @@ struct WorktreeDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .sheet(isPresented: $model.showAdd) {
+        .ainkradModal(isPresented: $model.showAdd) {
             AddWorktreeSheet(model: model, tokens: tokens)
         }
     }
@@ -141,9 +141,7 @@ private struct AddWorktreeSheet: View {
                 .disabled(!canAdd)
             }
         }
-        .padding(24)
-        .frame(minWidth: 440)
-        .background(tokens.background)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .foregroundStyle(tokens.foreground)
     }
 
