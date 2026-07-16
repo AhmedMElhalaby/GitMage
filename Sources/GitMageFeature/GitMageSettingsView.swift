@@ -148,7 +148,7 @@ struct GitMageSettingsView: View {
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tokens.surfaceElevated.opacity(0.4)))
+            .background(ChamferShape(cut: AinkradRadius.sm).fill(tokens.surfaceElevated.opacity(0.4)))
         }
     }
 
@@ -159,15 +159,13 @@ struct GitMageSettingsView: View {
                 .font(AinkradFont.fixedDisplay(12, weight: .medium))
                 .foregroundStyle(tokens.foreground.opacity(0.85))
             Spacer()
-            Picker("", selection: Binding(get: { selection }, set: onSelect)) {
-                ForEach(options, id: \.self) { name in
-                    Text(name).tag(name)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .tint(tokens.accentPrimary)
-            .fixedSize()
+            AinkradSearchableSelect(
+                items: options,
+                selection: Binding(get: { selection }, set: onSelect),
+                label: { $0 },
+                placeholder: "Search fonts…"
+            )
+            .frame(width: 200)
         }
     }
 
@@ -259,11 +257,11 @@ struct GitMageSettingsView: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
                     .background(
-                        RoundedRectangle(cornerRadius: 8)
+                        ChamferShape(cut: AinkradRadius.sm)
                             .fill(tokens.surfaceElevated.opacity(0.5))
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8)
+                        ChamferShape(cut: AinkradRadius.sm)
                             .strokeBorder(tokens.accentPrimary.opacity(0.2))
                     )
 
@@ -273,8 +271,7 @@ struct GitMageSettingsView: View {
                     } label: {
                         HStack(spacing: 6) {
                             if isVerifying {
-                                ProgressView()
-                                    .controlSize(.small)
+                                AinkradSpinner(size: 12)
                             }
                             Text("Save & Verify")
                         }
@@ -283,11 +280,11 @@ struct GitMageSettingsView: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .background(
-                            RoundedRectangle(cornerRadius: 8)
+                            ChamferShape(cut: AinkradRadius.sm)
                                 .fill(tokens.surfaceElevated.opacity(0.5))
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8)
+                            ChamferShape(cut: AinkradRadius.sm)
                                 .strokeBorder(tokens.accentPrimary.opacity(0.2))
                         )
                     }
@@ -304,11 +301,11 @@ struct GitMageSettingsView: View {
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 8)
+                                    ChamferShape(cut: AinkradRadius.sm)
                                         .fill(tokens.surfaceElevated.opacity(0.5))
                                 )
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
+                                    ChamferShape(cut: AinkradRadius.sm)
                                         .strokeBorder(tokens.accentPrimary.opacity(0.2))
                                 )
                         }
@@ -407,12 +404,12 @@ private struct ShortcutRecorderRow: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
                 .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    ChamferShape(cut: AinkradRadius.sm)
                         .fill(isRecording ? tokens.accentSecondary.opacity(0.14)
                               : tokens.surfaceElevated.opacity(0.5))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    ChamferShape(cut: AinkradRadius.sm)
                         .strokeBorder(isRecording ? tokens.accentSecondary.opacity(0.8)
                                       : tokens.accentPrimary.opacity(0.2),
                                       lineWidth: 1)
