@@ -52,12 +52,12 @@ struct MarkdownText: View {
                     .textSelection(.enabled)
                     .padding(8)
             }
-            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(tokens.surfaceElevated.opacity(0.55)))
-            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(tokens.foreground.opacity(0.07)))
+            .background(ChamferShape(cut: AinkradRadius.sm).fill(tokens.surfaceElevated.opacity(0.55)))
+            .overlay(ChamferShape(cut: AinkradRadius.sm).strokeBorder(tokens.foreground.opacity(0.07)))
 
         case .quote(let lines):
             HStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: 1).fill(tokens.accentPrimary.opacity(0.5)).frame(width: 3)
+                ChamferShape(cut: AinkradRadius.sm).fill(tokens.accentPrimary.opacity(0.5)).frame(width: 3)
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                         inline(line, size: baseSize)

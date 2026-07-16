@@ -112,8 +112,8 @@ struct HUDTextEditor: View {
                     .allowsHitTesting(false)
             }
         }
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(tokens.surfaceElevated.opacity(0.5)))
-        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+        .background(ChamferShape(cut: AinkradRadius.sm).fill(tokens.surfaceElevated.opacity(0.5)))
+        .overlay(ChamferShape(cut: AinkradRadius.sm)
             .strokeBorder(tokens.accentPrimary.opacity(focused ? 0.6 : 0.2), lineWidth: focused ? 1.2 : 1))
         .shadow(color: focused ? tokens.accentPrimary.opacity(0.25) : .clear, radius: 8)
     }
@@ -135,8 +135,8 @@ struct HUDTextField: View {
             .foregroundStyle(tokens.foreground)
             .focused($focused)
             .padding(.horizontal, 10).padding(.vertical, 7)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tokens.surfaceElevated.opacity(0.5)))
-            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .background(ChamferShape(cut: AinkradRadius.sm).fill(tokens.surfaceElevated.opacity(0.5)))
+            .overlay(ChamferShape(cut: AinkradRadius.sm)
                 .strokeBorder(tokens.accentPrimary.opacity(focused ? 0.5 : 0.18)))
     }
 }
@@ -160,8 +160,8 @@ struct HUDMenuLabel: View {
                 .foregroundStyle(tokens.foreground.opacity(0.4))
         }
         .padding(.horizontal, 10).padding(.vertical, 7)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tokens.surfaceElevated.opacity(0.5)))
-        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(tokens.accentPrimary.opacity(0.18)))
+        .background(ChamferShape(cut: AinkradRadius.sm).fill(tokens.surfaceElevated.opacity(0.5)))
+        .overlay(ChamferShape(cut: AinkradRadius.sm).strokeBorder(tokens.accentPrimary.opacity(0.18)))
     }
 }
 
@@ -191,8 +191,8 @@ struct HUDSearchField: View {
             }
         }
         .padding(.horizontal, 10).padding(.vertical, 7)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tokens.surfaceElevated.opacity(0.5)))
-        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+        .background(ChamferShape(cut: AinkradRadius.sm).fill(tokens.surfaceElevated.opacity(0.5)))
+        .overlay(ChamferShape(cut: AinkradRadius.sm)
             .strokeBorder(tokens.accentPrimary.opacity(focused ? 0.5 : 0.18)))
     }
 }

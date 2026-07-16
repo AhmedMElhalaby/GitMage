@@ -18,7 +18,7 @@ struct SelectableRow<Content: View>: View {
                 .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
-                    RoundedRectangle(cornerRadius: isSelected ? 8 : 10)
+                    ChamferShape(cut: AinkradRadius.md)
                         .fill(backgroundColor)
                 )
                 .contentShape(Rectangle())
