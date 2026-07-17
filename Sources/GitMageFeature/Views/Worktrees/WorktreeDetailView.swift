@@ -39,7 +39,7 @@ struct WorktreeDetailView: View {
             GlowRule(tokens: tokens)
 
             if model.isLoadingGraph {
-                GMSpinner(tint: tokens.accentSecondary, size: 22)
+                AinkradSpinner(size: 22)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.graphRows.isEmpty {
                 EmptyStateView(icon: "point.3.connected.trianglepath.dotted", title: "No history",
@@ -75,7 +75,7 @@ struct WorktreeDetailView: View {
                 }
             }
             Spacer()
-            GMButton("Open", kind: .primary, systemImage: "arrow.up.forward.square", tokens: tokens) {
+            AinkradButton(title: "Open", style: .primary, icon: "arrow.up.forward.square") {
                 model.open(wt)
             }
         }
@@ -134,8 +134,8 @@ private struct AddWorktreeSheet: View {
 
             HStack {
                 Spacer()
-                GMButton("Cancel", kind: .secondary, tokens: tokens) { model.showAdd = false }
-                GMButton("Add", kind: .primary, systemImage: "plus", tokens: tokens) {
+                AinkradButton(title: "Cancel", style: .secondary) { model.showAdd = false }
+                AinkradButton(title: "Add", style: .primary, icon: "plus") {
                     Task { await model.add(destination: destination) }
                 }
                 .disabled(!canAdd)
@@ -166,35 +166,40 @@ private struct AddWorktreeSheet: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer()
-                GMButton("Choose…", kind: .secondary, systemImage: "folder", tokens: tokens) { chooseDestination() }
+                AinkradButton(title: "Choose…", style: .secondary, icon: "folder") { chooseDestination() }
             }
         }
     }
 
     private var modePicker: some View {
-        HUDFilter(
-            options: [("New branch", WorktreesViewModel.AddMode.newBranch),
-                      ("Existing", WorktreesViewModel.AddMode.existingBranch),
-                      ("Detached", WorktreesViewModel.AddMode.detached)],
-            selection: $model.addMode, tokens: tokens
+        AinkradSegmentedPicker(
+            items: [.newBranch, .existingBranch, .detached],
+            selection: $model.addMode,
+            label: { mode in
+                switch mode {
+                case .newBranch: return "New branch"
+                case .existingBranch: return "Existing"
+                case .detached: return "Detached"
+                }
+            }
         )
     }
 
     @ViewBuilder private var modeInput: some View {
         switch model.addMode {
         case .newBranch:
-            HUDTextField(placeholder: "Branch name", text: $model.addBranchName, tokens: tokens)
+            AinkradTextField(text: $model.addBranchName, placeholder: "Branch name")
         case .existingBranch:
-            HUDMenu(
-                tokens: tokens,
-                items: model.branchNames.map { HUDMenuItem(id: $0, title: $0, isSelected: $0 == model.addExistingBranch) },
-                onPick: { model.addExistingBranch = $0 }
-            ) {
-                HUDMenuLabel(text: model.addExistingBranch ?? "Choose a branch",
-                             isPlaceholder: model.addExistingBranch == nil, tokens: tokens)
-            }
+            AinkradSelect(
+                items: model.branchNames,
+                selection: Binding(
+                    get: { model.addExistingBranch ?? "" },
+                    set: { model.addExistingBranch = $0 }
+                ),
+                label: { $0.isEmpty ? "Choose a branch" : $0 }
+            )
         case .detached:
-            HUDTextField(placeholder: "Ref (commit, tag, branch)", text: $model.addRef, tokens: tokens)
+            AinkradTextField(text: $model.addRef, placeholder: "Ref (commit, tag, branch)")
         }
     }
 

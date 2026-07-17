@@ -28,16 +28,26 @@ struct AdvancedDetailView: View {
             .padding(20)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .overlay {
-            if let pending = model.pendingConfirm {
-                HUDConfirmDialog(
-                    title: pending.title, message: pending.message,
-                    isDestructive: true, tokens: tokens,
-                    onConfirm: { Task { await model.confirmPending() } },
-                    onCancel: { model.cancelPending() }
-                )
+        // Kit confirm dialog for destructive Advanced ops (rebase / hard reset).
+        // Bound to `pendingConfirm != nil`. Confirm CAPTURES and consumes the
+        // pending action synchronously, then dispatches its `perform` — the
+        // dialog's own dismiss (which fires right after confirm) niling
+        // `pendingConfirm` therefore cannot race the destructive op away.
+        .ainkradConfirmDialog(
+            isPresented: Binding(
+                get: { model.pendingConfirm != nil },
+                set: { presented in if !presented { model.cancelPending() } }
+            ),
+            title: model.pendingConfirm?.title ?? "",
+            message: model.pendingConfirm?.message ?? "",
+            confirmTitle: "Confirm",
+            isDestructive: true,
+            onConfirm: {
+                guard let action = model.pendingConfirm else { return }
+                model.cancelPending()
+                Task { await action.perform() }
             }
-        }
+        )
     }
 
     // MARK: - In-progress banner
@@ -54,9 +64,9 @@ struct AdvancedDetailView: View {
                 .font(AinkradFont.display(11))
                 .foregroundStyle(tokens.foreground.opacity(0.6))
             HStack(spacing: 8) {
-                GMButton("Continue", kind: .primary, tokens: tokens) { Task { await model.continueOperation() } }
+                AinkradButton(title: "Continue", style: .primary) { Task { await model.continueOperation() } }
                     .disabled(model.isLoading)
-                GMButton("Abort", kind: .destructive, tokens: tokens) { Task { await model.abortOperation() } }
+                AinkradButton(title: "Abort", style: .danger) { Task { await model.abortOperation() } }
                     .disabled(model.isLoading)
             }
         }
@@ -85,10 +95,10 @@ struct AdvancedDetailView: View {
                     }
 
                     HStack(spacing: 8) {
-                        GMButton("Cherry-pick", kind: .secondary, systemImage: "arrow.right.circle", tokens: tokens) {
+                        AinkradButton(title: "Cherry-pick", style: .secondary, icon: "arrow.right.circle") {
                             Task { await model.cherryPick() }
                         }.disabled(model.isLoading)
-                        GMButton("Revert", kind: .secondary, systemImage: "arrow.uturn.backward", tokens: tokens) {
+                        AinkradButton(title: "Revert", style: .secondary, icon: "arrow.uturn.backward") {
                             Task { await model.revert() }
                         }.disabled(model.isLoading)
                         Spacer()
@@ -96,12 +106,13 @@ struct AdvancedDetailView: View {
 
                     // Reset row
                     HStack(spacing: 8) {
-                        HUDFilter(
-                            options: ResetMode.allCases.map { ($0.rawValue.capitalized, $0) },
-                            selection: $model.resetMode, tokens: tokens
+                        AinkradSegmentedPicker(
+                            items: ResetMode.allCases,
+                            selection: $model.resetMode,
+                            label: { $0.rawValue.capitalized }
                         )
                         .frame(maxWidth: 240)
-                        GMButton("Reset to here", kind: .destructive, systemImage: "arrow.counterclockwise", tokens: tokens) {
+                        AinkradButton(title: "Reset to here", style: .danger, icon: "arrow.counterclockwise") {
                             model.requestReset()
                         }.disabled(model.isLoading)
                         Spacer()
@@ -124,17 +135,17 @@ struct AdvancedDetailView: View {
                     Text("Rebase \(model.currentBranchName) onto")
                         .font(AinkradFont.display(12))
                         .foregroundStyle(tokens.foreground.opacity(0.85))
-                    HUDMenu(
-                        tokens: tokens,
-                        items: model.branchNames.map { HUDMenuItem(id: $0, title: $0, isSelected: $0 == model.rebaseBase) },
-                        onPick: { model.rebaseBase = $0 }
-                    ) {
-                        HUDMenuLabel(text: model.rebaseBase ?? "Choose a branch",
-                                     isPlaceholder: model.rebaseBase == nil, tokens: tokens)
-                            .frame(width: 180)
-                    }
+                    AinkradSelect(
+                        items: model.branchNames,
+                        selection: Binding(
+                            get: { model.rebaseBase ?? "" },
+                            set: { model.rebaseBase = $0 }
+                        ),
+                        label: { $0.isEmpty ? "Choose a branch" : $0 }
+                    )
+                    .frame(width: 180)
                 }
-                GMButton("Rebase", kind: .primary, systemImage: "arrow.triangle.merge", tokens: tokens) {
+                AinkradButton(title: "Rebase", style: .primary, icon: "arrow.triangle.merge") {
                     model.requestRebase()
                 }
                 .disabled(model.isLoading || model.rebaseBase == nil || model.rebaseBase?.isEmpty == true)
@@ -170,9 +181,9 @@ struct AdvancedDetailView: View {
                 Text("NEW TAG AT \(tagTarget)")
                     .font(AinkradFont.display(9, weight: .semibold)).kerning(1)
                     .foregroundStyle(tokens.foreground.opacity(0.45))
-                HUDTextField(placeholder: "Tag name", text: $model.newTagName, tokens: tokens)
-                HUDTextField(placeholder: "Message (optional)", text: $model.newTagMessage, tokens: tokens)
-                GMButton("Create tag", kind: .primary, systemImage: "tag", tokens: tokens) {
+                AinkradTextField(text: $model.newTagName, placeholder: "Tag name")
+                AinkradTextField(text: $model.newTagMessage, placeholder: "Message (optional)")
+                AinkradButton(title: "Create tag", style: .primary, icon: "tag") {
                     Task { await model.createTag() }
                 }
                 .disabled(model.isLoading || model.newTagName.trimmingCharacters(in: .whitespaces).isEmpty)

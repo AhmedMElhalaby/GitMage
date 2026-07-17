@@ -26,7 +26,7 @@ struct WorktreesContextPane: View {
 
     @ViewBuilder private var content: some View {
         if model.isLoading {
-            GMSpinner(tint: tokens.accentSecondary, size: 22)
+            AinkradSpinner(size: 22)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let errorMessage = model.errorMessage {
             EmptyStateView(icon: "rectangle.split.3x1", title: "Worktrees", message: errorMessage, tokens: tokens)

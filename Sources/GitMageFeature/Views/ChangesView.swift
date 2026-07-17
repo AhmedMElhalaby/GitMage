@@ -202,7 +202,7 @@ struct RowIconButton: View {
                 .overlay(Circle().strokeBorder(tokens.accentPrimary.opacity(hovering ? 0.45 : 0.2)))
         }
         .buttonStyle(.plain)
-        .hudTooltip(help, edge: .bottom, active: hovering)
+        .ainkradTooltip(help)
         .onHover { hovering = $0 }
     }
 }
@@ -268,7 +268,7 @@ struct CommitBox: View {
 
             HStack {
                 Spacer()
-                GMButton("Commit", kind: .primary, systemImage: "checkmark", tokens: tokens) {
+                AinkradButton(title: "Commit", style: .primary, icon: "checkmark") {
                     model.commitChanges()
                 }
                 .disabled(!canCommit)

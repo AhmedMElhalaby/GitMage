@@ -54,19 +54,34 @@ struct PullRequestsContextPane: View {
     private var filterBar: some View {
         VStack(spacing: 8) {
             PaneHeader(title: "PULL REQUESTS", count: model.pullRequests.count, countText: countText, tokens: tokens)
-            HUDFilter(
-                options: [("Open", PRState.open), ("Closed", PRState.closed)],
-                selection: $model.filter, tokens: tokens,
-                onChange: { Task { await model.load() } }
+            AinkradSegmentedPicker(
+                items: [PRState.open, PRState.closed],
+                selection: Binding(
+                    get: { model.filter },
+                    set: { newValue in
+                        if model.filter != newValue { model.filter = newValue; Task { await model.load() } }
+                    }
+                ),
+                label: { $0 == .open ? "Open" : "Closed" }
             )
             .padding(.horizontal, 12)
-            HUDSearchField(text: $model.searchText, placeholder: "Search pull requests…",
-                           tokens: tokens, onSubmit: { Task { await model.load() } })
+            AinkradSearchField(text: $model.searchText, placeholder: "Search pull requests…",
+                               onSubmit: { Task { await model.load() } })
                 .padding(.horizontal, 12)
             if !model.availableLabels.isEmpty {
-                LabelFilterBar(labels: model.availableLabels, selected: model.selectedLabels,
-                               tokens: tokens, onToggle: model.toggleLabel)
-                    .padding(.horizontal, 12)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(model.availableLabels) { label in
+                            AinkradSwatchChip(
+                                label: label.name,
+                                swatch: Color(hex: label.color),
+                                isOn: model.selectedLabels.contains(label.name),
+                                onTap: { model.toggleLabel(label.name) }
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
             }
         }
         .padding(.bottom, 8)
@@ -74,7 +89,7 @@ struct PullRequestsContextPane: View {
 
     @ViewBuilder private var list: some View {
         if model.isLoading {
-            GMSpinner(tint: tokens.accentSecondary, size: 22)
+            AinkradSpinner(size: 22)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let errorMessage = model.errorMessage {
             gateMessage(errorMessage)
@@ -97,7 +112,7 @@ struct PullRequestsContextPane: View {
                         }
                     }
                     if model.isLoadingMore {
-                        HStack { Spacer(); GMSpinner(tint: tokens.accentSecondary, size: 16); Spacer() }
+                        HStack { Spacer(); AinkradSpinner(size: 16); Spacer() }
                             .padding(.vertical, 12)
                     }
                 }

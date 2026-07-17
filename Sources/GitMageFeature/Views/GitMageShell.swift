@@ -28,6 +28,17 @@ struct GitMageShell: View {
         let s = settingsStore.settings
         return "\(s.textScale)|\(s.displayFontName)|\(s.monoFontName)"
     }
+    /// Bridges GitMage's per-plugin typography into the kit's `\.ainkradTypography`
+    /// env so swapped kit components (text fields, editors, search, and later
+    /// waves) honor the user's display font + text scale. Recomputes with `body`,
+    /// so changing the font/scale in Settings restyles kit controls live.
+    /// NOTE(mono-loss): `AinkradTypography` carries only one (display) family and
+    /// the kit hardcodes mono → JetBrains Mono, so `settings.monoFontName` does
+    /// NOT reach kit components (accepted loss, M6 W1).
+    private var kitTypography: AinkradTypography {
+        let s = settingsStore.settings
+        return AinkradTypography(fontFamilyName: s.displayFontName, scale: CGFloat(s.textScale))
+    }
     private var appearance: GitMageRenderAppearance {
         GitMageAppearanceResolver.resolve(settings: settingsStore.settings, tokens: tokens)
     }
@@ -55,20 +66,6 @@ struct GitMageShell: View {
             // AinkradFont call re-evaluates immediately (fonts are read
             // statically, so there's otherwise no dependency to invalidate on).
             .id(typographyToken)
-            .overlayPreferenceValue(TooltipKey.self) { item in
-                if let item {
-                    GeometryReader { proxy in
-                        let rect = proxy[item.anchor]
-                        HUDTooltipLabel(text: item.text, tokens: tokens)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                            .offset(
-                                x: item.edge == .trailing ? rect.maxX + 8 : rect.minX,
-                                y: item.edge == .trailing ? rect.midY - 12 : rect.maxY + 6
-                            )
-                    }
-                    .allowsHitTesting(false)
-                }
-            }
 
             if let management {
                 GitMageManagementOverlay(
@@ -79,16 +76,27 @@ struct GitMageShell: View {
                 )
             }
 
-            if model.showInitPrompt {
-                HUDConfirmDialog(
-                    title: "Initialize a new Git repository?",
-                    message: "\(model.pendingInitPath ?? "") is not a Git repository yet. Initialize it and add it to your library?",
-                    confirmTitle: "Initialize", tokens: tokens,
-                    onConfirm: { model.confirmInitPendingRepository() },
-                    onCancel: { model.cancelInitPendingRepository() }
-                )
-            }
         }
+        // Kit confirm dialog for the "initialize repository?" prompt. Bound to
+        // `showInitPrompt`; the setter clears the pending path on any dismiss
+        // (mirrors the old `cancelInitPendingRepository`). Confirm dispatches the
+        // init synchronously via `confirmInitPendingRepository` (it captures the
+        // path locally before the dialog dismisses).
+        .ainkradConfirmDialog(
+            isPresented: Binding(
+                get: { model.showInitPrompt },
+                set: { presented in
+                    if !presented {
+                        model.showInitPrompt = false
+                        model.cancelInitPendingRepository()
+                    }
+                }
+            ),
+            title: "Initialize a new Git repository?",
+            message: "\(model.pendingInitPath ?? "") is not a Git repository yet. Initialize it and add it to your library?",
+            confirmTitle: "Initialize",
+            onConfirm: { model.confirmInitPendingRepository() }
+        )
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.85), value: management)
         .background(
             ShortcutLayer(
@@ -118,6 +126,12 @@ struct GitMageShell: View {
             await buildAdvancedModelIfNeeded()
         }
         .ainkradModal(isPresented: $model.showClonePrompt) { cloneSheet }
+        // Inject GitMage's typography at the OUTERMOST level so every kit
+        // control — including the management overlay, confirm dialog, and clone
+        // modal (all attached outside the inner content) — honors the user's
+        // display font + scale. Kit controls read this dynamically, so it
+        // updates on settings change without needing to be under `.id`.
+        .environment(\.ainkradTypography, kitTypography)
     }
 
     private var topBar: some View {
@@ -132,12 +146,15 @@ struct GitMageShell: View {
             }
             Spacer()
             if model.hasActiveRepo {
-                TopBarActionButton(label: "Fetch", icon: "arrow.down.circle", shortcut: hint(.fetch),
-                                   isLoading: model.activeOperation == "fetch", tokens: tokens) { model.fetch() }
-                TopBarActionButton(label: "Pull", icon: "arrow.down.to.line", shortcut: hint(.pull),
-                                   isLoading: model.activeOperation == "pull", tokens: tokens) { model.pull() }
-                TopBarActionButton(label: "Push", icon: "arrow.up.to.line", shortcut: hint(.push), isPrimary: true,
-                                   isLoading: model.activeOperation == "push", tokens: tokens) { model.push() }
+                AinkradButton(title: "Fetch", style: .secondary, icon: "arrow.down.circle",
+                              isLoading: model.activeOperation == "fetch") { model.fetch() }
+                    .ainkradTooltip(shortcutTooltip("Fetch", hint(.fetch)))
+                AinkradButton(title: "Pull", style: .secondary, icon: "arrow.down.to.line",
+                              isLoading: model.activeOperation == "pull") { model.pull() }
+                    .ainkradTooltip(shortcutTooltip("Pull", hint(.pull)))
+                AinkradButton(title: "Push", style: .primary, icon: "arrow.up.to.line",
+                              isLoading: model.activeOperation == "push") { model.push() }
+                    .ainkradTooltip(shortcutTooltip("Push", hint(.push)))
             }
         }
         .padding(.horizontal, 16)
@@ -390,13 +407,13 @@ struct GitMageShell: View {
             Text("Clone a Repository").font(AinkradFont.display(18, weight: .semibold))
             Text("Enter a Git remote URL. You'll then choose a destination folder.")
                 .font(AinkradFont.display(12)).foregroundStyle(tokens.foreground.opacity(0.7))
-            HUDTextField(placeholder: "https://github.com/owner/repo.git",
-                         text: $model.cloneRemoteURL, tokens: tokens, mono: true)
+            AinkradTextField(text: $model.cloneRemoteURL,
+                             placeholder: "https://github.com/owner/repo.git")
                 .frame(minWidth: 380)
             HStack {
                 Spacer()
-                GMButton("Cancel", kind: .secondary, tokens: tokens) { model.showClonePrompt = false }
-                GMButton("Choose Destination & Clone", kind: .primary, tokens: tokens) { model.performClone() }
+                AinkradButton(title: "Cancel", style: .secondary) { model.showClonePrompt = false }
+                AinkradButton(title: "Choose Destination & Clone", style: .primary) { model.performClone() }
                     .disabled(model.cloneRemoteURL.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }

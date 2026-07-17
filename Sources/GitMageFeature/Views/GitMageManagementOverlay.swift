@@ -213,10 +213,10 @@ private struct RepoManagerPanel: View {
 
             GlowRule(tokens: tokens)
             HStack(spacing: 10) {
-                GMButton("Add Local", kind: .primary, systemImage: "plus", tokens: tokens) {
+                AinkradButton(title: "Add Local", style: .primary, icon: "plus") {
                     dismiss(); model.addRepositoryFolder()
                 }
-                GMButton("Clone", kind: .secondary, systemImage: "arrow.down.doc", tokens: tokens) {
+                AinkradButton(title: "Clone", style: .secondary, icon: "arrow.down.doc") {
                     dismiss(); model.startClone()
                 }
                 Spacer()
@@ -382,8 +382,8 @@ private struct BranchManagerPanel: View {
 
             GlowRule(tokens: tokens)
             HStack(spacing: 10) {
-                GMButton(canCreate ? "Create \"\(createName)\"" : "Create Branch",
-                         kind: .primary, systemImage: "arrow.branch", tokens: tokens) {
+                AinkradButton(title: canCreate ? "Create \"\(createName)\"" : "Create Branch",
+                              style: .primary, icon: "arrow.branch") {
                     create()
                 }
                 .disabled(!canCreate)
