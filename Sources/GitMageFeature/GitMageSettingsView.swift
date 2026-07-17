@@ -247,20 +247,7 @@ struct GitMageSettingsView: View {
                     .font(AinkradFont.fixedDisplay(12, weight: .medium))
                     .foregroundStyle(tokens.foreground.opacity(0.85))
 
-                SecureField("Personal access token", text: $tokenDraft)
-                    .textFieldStyle(.plain)
-                    .font(AinkradFont.fixedMono(12))
-                    .foregroundStyle(tokens.foreground)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(
-                        ChamferShape(cut: AinkradRadius.sm)
-                            .fill(tokens.surfaceElevated.opacity(0.5))
-                    )
-                    .overlay(
-                        ChamferShape(cut: AinkradRadius.sm)
-                            .strokeBorder(tokens.accentPrimary.opacity(0.2))
-                    )
+                AinkradSecureField(text: $tokenDraft, placeholder: "Personal access token")
 
                 HStack(spacing: 10) {
                     Button {
