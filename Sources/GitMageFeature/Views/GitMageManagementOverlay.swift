@@ -54,7 +54,15 @@ private extension View {
     /// contact shadow — the same finish as the host's summonable overlays.
     func hudPanelChrome(_ tokens: HostThemeTokens) -> some View {
         self
-            .background(tokens.background.opacity(0.94))
+            // Translucent + blurred, matching the host's summonable overlays
+            // (was a near-opaque 0.94 fill). VisualEffectBlur is the kit's
+            // NSVisualEffectView wrapper.
+            .background {
+                ZStack {
+                    VisualEffectBlur()
+                    tokens.background.opacity(0.55)
+                }
+            }
             .clipShape(ChamferShape(cut: AinkradRadius.panel))
             .overlay(
                 ChamferShape(cut: AinkradRadius.panel)
