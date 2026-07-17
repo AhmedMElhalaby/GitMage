@@ -52,14 +52,13 @@ struct GitMageSettingsView: View {
                         .font(AinkradFont.fixedMono(11))
                         .foregroundStyle(tokens.foreground.opacity(0.6))
                 }
-                Slider(
+                AinkradSlider(
                     value: Binding(
                         get: { settings.backgroundOpacity },
                         set: { v in settingsStore.update { $0.backgroundOpacity = v } }
                     ),
                     in: 0.2...1.0
                 )
-                .tint(tokens.accentPrimary)
                 Text("Below 100%, the workspace backdrop shows through. Blur is managed by the host.")
                     .font(AinkradFont.fixedDisplay(11))
                     .foregroundStyle(tokens.foreground.opacity(0.45))
@@ -89,14 +88,13 @@ struct GitMageSettingsView: View {
                         .font(AinkradFont.fixedMono(11))
                         .foregroundStyle(tokens.foreground.opacity(0.6))
                 }
-                Slider(
+                AinkradSlider(
                     value: Binding(
                         get: { settings.diffFontSize },
                         set: { v in settingsStore.update { $0.diffFontSize = v.rounded() } }
                     ),
                     in: 9...20
                 )
-                .tint(tokens.accentPrimary)
             }
         }
     }
@@ -115,14 +113,13 @@ struct GitMageSettingsView: View {
                         .font(AinkradFont.fixedMono(11))
                         .foregroundStyle(tokens.foreground.opacity(0.6))
                 }
-                Slider(
+                AinkradSlider(
                     value: Binding(
                         get: { settings.textScale },
                         set: { v in settingsStore.update { $0.textScale = (v * 20).rounded() / 20 } }
                     ),
                     in: 0.8...1.3
                 )
-                .tint(tokens.accentPrimary)
                 Text("Scales every text in Git Mage. The sample below updates live.")
                     .font(AinkradFont.fixedDisplay(11))
                     .foregroundStyle(tokens.foreground.opacity(0.45))
@@ -250,20 +247,7 @@ struct GitMageSettingsView: View {
                     .font(AinkradFont.fixedDisplay(12, weight: .medium))
                     .foregroundStyle(tokens.foreground.opacity(0.85))
 
-                SecureField("Personal access token", text: $tokenDraft)
-                    .textFieldStyle(.plain)
-                    .font(AinkradFont.fixedMono(12))
-                    .foregroundStyle(tokens.foreground)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(
-                        ChamferShape(cut: AinkradRadius.sm)
-                            .fill(tokens.surfaceElevated.opacity(0.5))
-                    )
-                    .overlay(
-                        ChamferShape(cut: AinkradRadius.sm)
-                            .strokeBorder(tokens.accentPrimary.opacity(0.2))
-                    )
+                AinkradSecureField(text: $tokenDraft, placeholder: "Personal access token")
 
                 HStack(spacing: 10) {
                     Button {
