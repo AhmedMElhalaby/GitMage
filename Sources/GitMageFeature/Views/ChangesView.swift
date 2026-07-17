@@ -52,11 +52,11 @@ struct ChangesContextPane: View {
                         .background(Capsule().fill(tokens.surfaceElevated.opacity(0.6)))
                     Spacer()
                     if staged {
-                        RowIconButton(symbol: "minus", help: "Unstage all", tokens: tokens, size: 20) {
+                        AinkradIconButton(systemName: "minus", size: 20, tooltip: "Unstage all") {
                             model.unstageAllChanges()
                         }
                     } else {
-                        RowIconButton(symbol: "plus", help: "Stage all", tokens: tokens, size: 20) {
+                        AinkradIconButton(systemName: "plus", size: 20, tooltip: "Stage all") {
                             model.stageAllChanges()
                         }
                     }
@@ -150,10 +150,10 @@ struct ChangeRow: View {
             // hover. Not hit-testable while hidden so it never steals a click.
             HStack(spacing: 4) {
                 if staged {
-                    RowIconButton(symbol: "minus", help: "Unstage", tokens: tokens, action: onUnstage)
+                    AinkradIconButton(systemName: "minus", size: 22, tooltip: "Unstage", action: onUnstage)
                 } else {
-                    RowIconButton(symbol: "plus", help: "Stage", tokens: tokens, action: onStage)
-                    RowIconButton(symbol: "arrow.uturn.backward", help: "Discard", tokens: tokens, action: onDiscard)
+                    AinkradIconButton(systemName: "plus", size: 22, tooltip: "Stage", action: onStage)
+                    AinkradIconButton(systemName: "arrow.uturn.backward", size: 22, tooltip: "Discard", action: onDiscard)
                 }
             }
             .opacity(hovering ? 1 : 0)
@@ -179,31 +179,6 @@ struct ChangeRow: View {
         .onHover { hovering = $0 }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovering)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: isSelected)
-    }
-}
-
-/// A small circular HUD icon button with a hover-driven tooltip. Used for the
-/// row stage/unstage/discard actions and the group-header stage/unstage-all.
-struct RowIconButton: View {
-    let symbol: String
-    let help: String
-    let tokens: HostThemeTokens
-    var size: CGFloat = 22
-    let action: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(tokens.foreground.opacity(hovering ? 1 : 0.8))
-                .frame(width: size, height: size)
-                .background(Circle().fill(tokens.surfaceElevated.opacity(hovering ? 0.95 : 0.8)))
-                .overlay(Circle().strokeBorder(tokens.accentPrimary.opacity(hovering ? 0.45 : 0.2)))
-        }
-        .buttonStyle(.plain)
-        .ainkradTooltip(help)
-        .onHover { hovering = $0 }
     }
 }
 

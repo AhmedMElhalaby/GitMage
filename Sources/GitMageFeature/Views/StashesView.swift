@@ -10,10 +10,10 @@ struct StashesContextPane: View {
         VStack(spacing: 0) {
             PaneHeader(title: "STASHES", count: model.stashes.count, tokens: tokens) {
                 HStack(spacing: 6) {
-                    RowIconButton(symbol: "tray.and.arrow.down", help: "Stash changes", tokens: tokens) {
+                    AinkradIconButton(systemName: "tray.and.arrow.down", size: 22, tooltip: "Stash changes") {
                         model.stashChanges()
                     }
-                    RowIconButton(symbol: "tray.and.arrow.up", help: "Pop latest stash", tokens: tokens) {
+                    AinkradIconButton(systemName: "tray.and.arrow.up", size: 22, tooltip: "Pop latest stash") {
                         model.popLatestStash()
                     }
                     .opacity(model.stashes.isEmpty || model.isLoading ? 0.4 : 1)
@@ -79,8 +79,8 @@ private struct StashRow: View {
             Spacer(minLength: 4)
 
             HStack(spacing: 4) {
-                RowIconButton(symbol: "arrow.down.circle", help: "Apply", tokens: tokens, action: onApply)
-                RowIconButton(symbol: "trash", help: "Drop", tokens: tokens, action: onDrop)
+                AinkradIconButton(systemName: "arrow.down.circle", size: 22, tooltip: "Apply", action: onApply)
+                AinkradIconButton(systemName: "trash", size: 22, tooltip: "Drop", action: onDrop)
             }
             .opacity(hovering ? 1 : 0)
             .allowsHitTesting(hovering)

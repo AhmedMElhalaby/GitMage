@@ -30,11 +30,7 @@ struct DiscussionCard: View {
                     .foregroundStyle(tokens.foreground.opacity(0.45))
                 Spacer()
                 if isPrimary {
-                    Text("AUTHOR")
-                        .font(AinkradFont.mono(8, weight: .bold)).tracking(1)
-                        .foregroundStyle(tokens.accentSecondary)
-                        .padding(.horizontal, 5).padding(.vertical, 1)
-                        .background(Capsule().fill(tokens.accentSecondary.opacity(0.14)))
+                    AinkradBadge(text: "AUTHOR", tint: tokens.accentSecondary)
                 }
             }
             .padding(.horizontal, 12).padding(.vertical, 8)

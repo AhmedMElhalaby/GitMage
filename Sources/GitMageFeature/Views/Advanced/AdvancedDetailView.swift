@@ -242,7 +242,7 @@ private struct TagRow: View {
                 }
             }
             Spacer()
-            RowIconButton(symbol: "trash", help: "Delete tag", tokens: tokens, size: 20, action: onDelete)
+            AinkradIconButton(systemName: "trash", size: 20, tooltip: "Delete tag", action: onDelete)
                 .opacity(hovering ? 1 : 0)
                 .allowsHitTesting(hovering)
         }

@@ -24,7 +24,12 @@ struct PullRequestDetailView: View {
         VStack(spacing: 0) {
             if let detail = model.detail {
                 header(detail)
-                tabBar
+                AinkradSegmentedPicker(
+                    items: Tab.allCases,
+                    selection: $tab,
+                    label: { "\($0.rawValue) \(tabCount($0))" }
+                )
+                .padding(.horizontal, 16).padding(.vertical, 10)
 
                 switch tab {
                 case .conversation:
@@ -86,34 +91,12 @@ struct PullRequestDetailView: View {
 
     // MARK: - Tabs
 
-    private var tabBar: some View {
-        HStack(spacing: 6) {
-            tabPill(.conversation, count: model.comments.count)
-            tabPill(.commits, count: model.commits.count)
-            tabPill(.files, count: model.files.count)
-            Spacer()
+    private func tabCount(_ t: Tab) -> Int {
+        switch t {
+        case .conversation: return model.comments.count
+        case .commits: return model.commits.count
+        case .files: return model.files.count
         }
-        .padding(.horizontal, 16).padding(.vertical, 10)
-    }
-
-    private func tabPill(_ t: Tab, count: Int) -> some View {
-        let isOn = tab == t
-        return Button { tab = t } label: {
-            HStack(spacing: 6) {
-                Text(t.rawValue).font(AinkradFont.display(12, weight: .medium))
-                Text("\(count)")
-                    .font(AinkradFont.mono(10, weight: .medium))
-                    .foregroundStyle(isOn ? tokens.accentPrimary : tokens.foreground.opacity(0.5))
-                    .padding(.horizontal, 5).padding(.vertical, 1)
-                    .background(Capsule().fill((isOn ? tokens.accentPrimary : tokens.foreground).opacity(0.12)))
-            }
-            .foregroundStyle(isOn ? tokens.accentPrimary : tokens.foreground.opacity(0.65))
-            .padding(.horizontal, 12).padding(.vertical, 6)
-            .background(Capsule().fill(isOn ? tokens.accentPrimary.opacity(0.14) : .clear))
-            .overlay(Capsule().strokeBorder(isOn ? tokens.accentPrimary.opacity(0.4) : .clear))
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Conversation
@@ -157,7 +140,7 @@ struct PullRequestDetailView: View {
     private var composer: some View {
         VStack(alignment: .leading, spacing: 10) {
             GlowRule(tokens: tokens)
-            AinkradTextArea(text: $composerText, placeholder: "Leave a comment…")
+            AinkradTextArea(text: $composerText, placeholder: "Leave a comment…", minHeight: 44)
             HStack(spacing: 8) {
                 AinkradButton(title: "Comment", style: .secondary, icon: "text.bubble") {
                     Task { await model.comment(composerText); composerText = "" }

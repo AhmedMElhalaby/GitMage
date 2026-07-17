@@ -74,7 +74,7 @@ struct IssueDetailView: View {
     private func composer(_ detail: IssueDetail) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             GlowRule(tokens: tokens)
-            AinkradTextArea(text: $composerText, placeholder: "Leave a comment…")
+            AinkradTextArea(text: $composerText, placeholder: "Leave a comment…", minHeight: 44)
             HStack(spacing: 8) {
                 AinkradButton(title: "Comment", style: .secondary, icon: "text.bubble") {
                     Task { await model.comment(composerText); composerText = "" }
