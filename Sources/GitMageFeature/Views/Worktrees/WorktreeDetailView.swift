@@ -172,11 +172,16 @@ private struct AddWorktreeSheet: View {
     }
 
     private var modePicker: some View {
-        HUDFilter(
-            options: [("New branch", WorktreesViewModel.AddMode.newBranch),
-                      ("Existing", WorktreesViewModel.AddMode.existingBranch),
-                      ("Detached", WorktreesViewModel.AddMode.detached)],
-            selection: $model.addMode, tokens: tokens
+        AinkradSegmentedPicker(
+            items: [.newBranch, .existingBranch, .detached],
+            selection: $model.addMode,
+            label: { mode in
+                switch mode {
+                case .newBranch: return "New branch"
+                case .existingBranch: return "Existing"
+                case .detached: return "Detached"
+                }
+            }
         )
     }
 

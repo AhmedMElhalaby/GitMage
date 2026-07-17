@@ -28,16 +28,26 @@ struct AdvancedDetailView: View {
             .padding(20)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .overlay {
-            if let pending = model.pendingConfirm {
-                HUDConfirmDialog(
-                    title: pending.title, message: pending.message,
-                    isDestructive: true, tokens: tokens,
-                    onConfirm: { Task { await model.confirmPending() } },
-                    onCancel: { model.cancelPending() }
-                )
+        // Kit confirm dialog for destructive Advanced ops (rebase / hard reset).
+        // Bound to `pendingConfirm != nil`. Confirm CAPTURES and consumes the
+        // pending action synchronously, then dispatches its `perform` — the
+        // dialog's own dismiss (which fires right after confirm) niling
+        // `pendingConfirm` therefore cannot race the destructive op away.
+        .ainkradConfirmDialog(
+            isPresented: Binding(
+                get: { model.pendingConfirm != nil },
+                set: { presented in if !presented { model.cancelPending() } }
+            ),
+            title: model.pendingConfirm?.title ?? "",
+            message: model.pendingConfirm?.message ?? "",
+            confirmTitle: "Confirm",
+            isDestructive: true,
+            onConfirm: {
+                guard let action = model.pendingConfirm else { return }
+                model.cancelPending()
+                Task { await action.perform() }
             }
-        }
+        )
     }
 
     // MARK: - In-progress banner
@@ -96,9 +106,10 @@ struct AdvancedDetailView: View {
 
                     // Reset row
                     HStack(spacing: 8) {
-                        HUDFilter(
-                            options: ResetMode.allCases.map { ($0.rawValue.capitalized, $0) },
-                            selection: $model.resetMode, tokens: tokens
+                        AinkradSegmentedPicker(
+                            items: ResetMode.allCases,
+                            selection: $model.resetMode,
+                            label: { $0.rawValue.capitalized }
                         )
                         .frame(maxWidth: 240)
                         AinkradButton(title: "Reset to here", style: .danger, icon: "arrow.counterclockwise") {

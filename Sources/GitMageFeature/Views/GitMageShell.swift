@@ -91,16 +91,27 @@ struct GitMageShell: View {
                 )
             }
 
-            if model.showInitPrompt {
-                HUDConfirmDialog(
-                    title: "Initialize a new Git repository?",
-                    message: "\(model.pendingInitPath ?? "") is not a Git repository yet. Initialize it and add it to your library?",
-                    confirmTitle: "Initialize", tokens: tokens,
-                    onConfirm: { model.confirmInitPendingRepository() },
-                    onCancel: { model.cancelInitPendingRepository() }
-                )
-            }
         }
+        // Kit confirm dialog for the "initialize repository?" prompt. Bound to
+        // `showInitPrompt`; the setter clears the pending path on any dismiss
+        // (mirrors the old `cancelInitPendingRepository`). Confirm dispatches the
+        // init synchronously via `confirmInitPendingRepository` (it captures the
+        // path locally before the dialog dismisses).
+        .ainkradConfirmDialog(
+            isPresented: Binding(
+                get: { model.showInitPrompt },
+                set: { presented in
+                    if !presented {
+                        model.showInitPrompt = false
+                        model.cancelInitPendingRepository()
+                    }
+                }
+            ),
+            title: "Initialize a new Git repository?",
+            message: "\(model.pendingInitPath ?? "") is not a Git repository yet. Initialize it and add it to your library?",
+            confirmTitle: "Initialize",
+            onConfirm: { model.confirmInitPendingRepository() }
+        )
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.85), value: management)
         .background(
             ShortcutLayer(

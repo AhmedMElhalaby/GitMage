@@ -39,42 +39,6 @@ struct PaneHeader<Trailing: View>: View {
     }
 }
 
-/// A two-or-more option HUD filter, rendered as accent pills inside a
-/// translucent track. Used for Open/Closed filters.
-struct HUDFilter<Tag: Hashable>: View {
-    let options: [(title: String, tag: Tag)]
-    @Binding var selection: Tag
-    let tokens: HostThemeTokens
-    var onChange: () -> Void = {}
-
-    var body: some View {
-        HStack(spacing: 3) {
-            ForEach(options, id: \.tag) { option in
-                let isOn = option.tag == selection
-                Button {
-                    if selection != option.tag { selection = option.tag; onChange() }
-                } label: {
-                    Text(option.title)
-                        .font(AinkradFont.display(11, weight: .medium))
-                        .foregroundStyle(isOn ? tokens.accentPrimary : tokens.foreground.opacity(0.6))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 5)
-                        .background(
-                            Capsule().fill(isOn ? tokens.accentPrimary.opacity(0.16) : .clear)
-                        )
-                        .overlay(
-                            Capsule().strokeBorder(isOn ? tokens.accentPrimary.opacity(0.4) : .clear)
-                        )
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(3)
-        .background(Capsule().fill(tokens.surfaceElevated.opacity(0.4)))
-    }
-}
-
 /// Horizontal accent glow rule — the soft separator used across surfaces.
 struct GlowRule: View {
     let tokens: HostThemeTokens

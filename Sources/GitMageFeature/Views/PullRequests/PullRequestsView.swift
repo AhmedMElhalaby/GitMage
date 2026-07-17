@@ -54,10 +54,15 @@ struct PullRequestsContextPane: View {
     private var filterBar: some View {
         VStack(spacing: 8) {
             PaneHeader(title: "PULL REQUESTS", count: model.pullRequests.count, countText: countText, tokens: tokens)
-            HUDFilter(
-                options: [("Open", PRState.open), ("Closed", PRState.closed)],
-                selection: $model.filter, tokens: tokens,
-                onChange: { Task { await model.load() } }
+            AinkradSegmentedPicker(
+                items: [PRState.open, PRState.closed],
+                selection: Binding(
+                    get: { model.filter },
+                    set: { newValue in
+                        if model.filter != newValue { model.filter = newValue; Task { await model.load() } }
+                    }
+                ),
+                label: { $0 == .open ? "Open" : "Closed" }
             )
             .padding(.horizontal, 12)
             AinkradSearchField(text: $model.searchText, placeholder: "Search pull requests…",

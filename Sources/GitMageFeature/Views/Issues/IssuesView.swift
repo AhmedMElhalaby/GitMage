@@ -59,10 +59,15 @@ struct IssuesContextPane: View {
             PaneHeader(title: "ISSUES", count: model.issues.count, countText: countText, tokens: tokens) {
                 RowIconButton(symbol: "plus", help: "New issue", tokens: tokens) { model.showNew = true }
             }
-            HUDFilter(
-                options: [("Open", IssueState.open), ("Closed", IssueState.closed)],
-                selection: $model.filter, tokens: tokens,
-                onChange: { Task { await model.load() } }
+            AinkradSegmentedPicker(
+                items: [IssueState.open, IssueState.closed],
+                selection: Binding(
+                    get: { model.filter },
+                    set: { newValue in
+                        if model.filter != newValue { model.filter = newValue; Task { await model.load() } }
+                    }
+                ),
+                label: { $0 == .open ? "Open" : "Closed" }
             )
             .padding(.horizontal, 12)
             AinkradSearchField(text: $model.searchText, placeholder: "Search issues…",

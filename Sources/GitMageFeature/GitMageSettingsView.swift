@@ -40,7 +40,7 @@ struct GitMageSettingsView: View {
 
     private var appearanceSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SettingsSectionHeader(title: "APPEARANCE", tokens: tokens)
+            AinkradSectionHeader(title: "APPEARANCE")
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
@@ -101,7 +101,7 @@ struct GitMageSettingsView: View {
 
     private var typographySection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SettingsSectionHeader(title: "TYPOGRAPHY", tokens: tokens)
+            AinkradSectionHeader(title: "TYPOGRAPHY")
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
@@ -169,7 +169,7 @@ struct GitMageSettingsView: View {
     private var shortcutsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center) {
-                SettingsSectionHeader(title: "KEYBOARD SHORTCUTS", tokens: tokens)
+                AinkradSectionHeader(title: "KEYBOARD SHORTCUTS")
                 Spacer()
                 Button("Reset to defaults") { resetShortcuts() }
                     .buttonStyle(.plain)
@@ -240,7 +240,7 @@ struct GitMageSettingsView: View {
 
     private var githubSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SettingsSectionHeader(title: "GITHUB", tokens: tokens)
+            AinkradSectionHeader(title: "GITHUB")
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Personal access token")
@@ -337,7 +337,7 @@ struct GitMageSettingsView: View {
 
     private var aboutSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SettingsSectionHeader(title: "STORAGE", tokens: tokens)
+            AinkradSectionHeader(title: "STORAGE")
             Text("Your repository library and settings are stored in Git Mage's app-scoped document store.")
                 .font(AinkradFont.fixedDisplay(11))
                 .foregroundStyle(tokens.foreground.opacity(0.45))
