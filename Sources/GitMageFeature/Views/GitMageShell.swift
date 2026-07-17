@@ -66,7 +66,6 @@ struct GitMageShell: View {
             // AinkradFont call re-evaluates immediately (fonts are read
             // statically, so there's otherwise no dependency to invalidate on).
             .id(typographyToken)
-            .environment(\.ainkradTypography, kitTypography)
 
             if let management {
                 GitMageManagementOverlay(
@@ -127,6 +126,12 @@ struct GitMageShell: View {
             await buildAdvancedModelIfNeeded()
         }
         .ainkradModal(isPresented: $model.showClonePrompt) { cloneSheet }
+        // Inject GitMage's typography at the OUTERMOST level so every kit
+        // control — including the management overlay, confirm dialog, and clone
+        // modal (all attached outside the inner content) — honors the user's
+        // display font + scale. Kit controls read this dynamically, so it
+        // updates on settings change without needing to be under `.id`.
+        .environment(\.ainkradTypography, kitTypography)
     }
 
     private var topBar: some View {
