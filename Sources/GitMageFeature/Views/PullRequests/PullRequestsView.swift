@@ -64,9 +64,19 @@ struct PullRequestsContextPane: View {
                                onSubmit: { Task { await model.load() } })
                 .padding(.horizontal, 12)
             if !model.availableLabels.isEmpty {
-                LabelFilterBar(labels: model.availableLabels, selected: model.selectedLabels,
-                               tokens: tokens, onToggle: model.toggleLabel)
-                    .padding(.horizontal, 12)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(model.availableLabels) { label in
+                            AinkradSwatchChip(
+                                label: label.name,
+                                swatch: Color(hex: label.color),
+                                isOn: model.selectedLabels.contains(label.name),
+                                onTap: { model.toggleLabel(label.name) }
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
             }
         }
         .padding(.bottom, 8)

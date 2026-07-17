@@ -124,15 +124,15 @@ struct AdvancedDetailView: View {
                     Text("Rebase \(model.currentBranchName) onto")
                         .font(AinkradFont.display(12))
                         .foregroundStyle(tokens.foreground.opacity(0.85))
-                    HUDMenu(
-                        tokens: tokens,
-                        items: model.branchNames.map { HUDMenuItem(id: $0, title: $0, isSelected: $0 == model.rebaseBase) },
-                        onPick: { model.rebaseBase = $0 }
-                    ) {
-                        HUDMenuLabel(text: model.rebaseBase ?? "Choose a branch",
-                                     isPlaceholder: model.rebaseBase == nil, tokens: tokens)
-                            .frame(width: 180)
-                    }
+                    AinkradSelect(
+                        items: model.branchNames,
+                        selection: Binding(
+                            get: { model.rebaseBase ?? "" },
+                            set: { model.rebaseBase = $0 }
+                        ),
+                        label: { $0.isEmpty ? "Choose a branch" : $0 }
+                    )
+                    .frame(width: 180)
                 }
                 AinkradButton(title: "Rebase", style: .primary, icon: "arrow.triangle.merge") {
                     model.requestRebase()

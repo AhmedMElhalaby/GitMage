@@ -185,14 +185,14 @@ private struct AddWorktreeSheet: View {
         case .newBranch:
             AinkradTextField(text: $model.addBranchName, placeholder: "Branch name")
         case .existingBranch:
-            HUDMenu(
-                tokens: tokens,
-                items: model.branchNames.map { HUDMenuItem(id: $0, title: $0, isSelected: $0 == model.addExistingBranch) },
-                onPick: { model.addExistingBranch = $0 }
-            ) {
-                HUDMenuLabel(text: model.addExistingBranch ?? "Choose a branch",
-                             isPlaceholder: model.addExistingBranch == nil, tokens: tokens)
-            }
+            AinkradSelect(
+                items: model.branchNames,
+                selection: Binding(
+                    get: { model.addExistingBranch ?? "" },
+                    set: { model.addExistingBranch = $0 }
+                ),
+                label: { $0.isEmpty ? "Choose a branch" : $0 }
+            )
         case .detached:
             AinkradTextField(text: $model.addRef, placeholder: "Ref (commit, tag, branch)")
         }

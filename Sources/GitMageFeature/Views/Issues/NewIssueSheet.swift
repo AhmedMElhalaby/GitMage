@@ -35,37 +35,21 @@ struct NewIssueSheet: View {
     }
 
     private var labelsMenu: some View {
-        HUDMenu(
-            tokens: tokens,
-            items: model.repoLabels.map { label in
-                HUDMenuItem(id: label.name, title: label.name,
-                            isSelected: model.newLabels.contains(label.name), colorHex: label.color)
-            },
-            multiSelect: true,
-            onPick: { name in
-                if model.newLabels.contains(name) { model.newLabels.remove(name) }
-                else { model.newLabels.insert(name) }
+        AinkradMultiSelect(
+            items: model.repoLabels.map(\.name),
+            selection: $model.newLabels,
+            label: { $0 },
+            swatch: { name in
+                model.repoLabels.first { $0.name == name }.map { Color(hex: $0.color) }
             }
-        ) {
-            HUDMenuLabel(text: model.newLabels.isEmpty ? "Labels" : model.newLabels.sorted().joined(separator: ", "),
-                         isPlaceholder: model.newLabels.isEmpty, tokens: tokens)
-        }
+        )
     }
 
     private var assigneesMenu: some View {
-        HUDMenu(
-            tokens: tokens,
-            items: model.assignableUsers.map { user in
-                HUDMenuItem(id: user.login, title: user.login, isSelected: model.newAssignees.contains(user.login))
-            },
-            multiSelect: true,
-            onPick: { login in
-                if model.newAssignees.contains(login) { model.newAssignees.remove(login) }
-                else { model.newAssignees.insert(login) }
-            }
-        ) {
-            HUDMenuLabel(text: model.newAssignees.isEmpty ? "Assignees" : model.newAssignees.sorted().joined(separator: ", "),
-                         isPlaceholder: model.newAssignees.isEmpty, tokens: tokens)
-        }
+        AinkradMultiSelect(
+            items: model.assignableUsers.map(\.login),
+            selection: $model.newAssignees,
+            label: { $0 }
+        )
     }
 }

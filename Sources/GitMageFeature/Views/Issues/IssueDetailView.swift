@@ -98,25 +98,6 @@ struct IssueDetailView: View {
     }
 }
 
-/// The HUD trigger chip for the labels/assignees dropdown menus.
-private struct EditorChip: View {
-    let icon: String
-    let title: String
-    let tokens: HostThemeTokens
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon).font(.system(size: 10))
-            Text(title).font(AinkradFont.display(11, weight: .medium))
-            Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold)).opacity(0.6)
-        }
-        .foregroundStyle(tokens.accentPrimary.opacity(0.9))
-        .padding(.horizontal, 9).padding(.vertical, 5)
-        .background(Capsule().fill(tokens.surfaceElevated.opacity(0.5)))
-        .overlay(Capsule().strokeBorder(tokens.accentPrimary.opacity(0.2)))
-    }
-}
-
 /// Editable labels control: a menu of repo labels with checkmarks on those
 /// currently applied, rendering colored chips for the current selection.
 private struct LabelsEditor: View {
@@ -126,33 +107,24 @@ private struct LabelsEditor: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            HUDMenu(
-                tokens: tokens,
-                items: model.repoLabels.map { label in
-                    HUDMenuItem(id: label.name, title: label.name,
-                                isSelected: detail.labels.contains { $0.name == label.name },
-                                colorHex: label.color)
-                },
-                multiSelect: true,
-                onPick: { toggle($0) }
-            ) {
-                EditorChip(icon: "tag", title: "Labels", tokens: tokens)
-            }
+            AinkradMultiSelect(
+                items: model.repoLabels.map(\.name),
+                selection: Binding(
+                    // The applied-label set is derived from `detail.labels`;
+                    // writing back diffs into the async `setLabels` side effect.
+                    get: { Set(detail.labels.map(\.name)) },
+                    set: { names in Task { await model.setLabels(names) } }
+                ),
+                label: { $0 },
+                swatch: { name in
+                    model.repoLabels.first { $0.name == name }.map { Color(hex: $0.color) }
+                }
+            )
 
             ForEach(detail.labels) { label in
                 ColoredLabelChip(label: label)
             }
         }
-    }
-
-    private func toggle(_ name: String) {
-        var names = Set(detail.labels.map(\.name))
-        if names.contains(name) {
-            names.remove(name)
-        } else {
-            names.insert(name)
-        }
-        Task { await model.setLabels(names) }
     }
 }
 
@@ -165,17 +137,16 @@ private struct AssigneesEditor: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            HUDMenu(
-                tokens: tokens,
-                items: model.assignableUsers.map { user in
-                    HUDMenuItem(id: user.login, title: user.login,
-                                isSelected: detail.assignees.contains(user.login))
-                },
-                multiSelect: true,
-                onPick: { toggle($0) }
-            ) {
-                EditorChip(icon: "person", title: "Assignees", tokens: tokens)
-            }
+            AinkradMultiSelect(
+                items: model.assignableUsers.map(\.login),
+                selection: Binding(
+                    // Derived from `detail.assignees`; write-back diffs into the
+                    // async `setAssignees` side effect.
+                    get: { Set(detail.assignees) },
+                    set: { logins in Task { await model.setAssignees(logins) } }
+                ),
+                label: { $0 }
+            )
 
             ForEach(detail.assignees, id: \.self) { login in
                 HStack(spacing: 4) {
@@ -194,15 +165,5 @@ private struct AssigneesEditor: View {
                 .background(Capsule().fill(tokens.surfaceElevated.opacity(0.5)))
             }
         }
-    }
-
-    private func toggle(_ login: String) {
-        var logins = Set(detail.assignees)
-        if logins.contains(login) {
-            logins.remove(login)
-        } else {
-            logins.insert(login)
-        }
-        Task { await model.setAssignees(logins) }
     }
 }

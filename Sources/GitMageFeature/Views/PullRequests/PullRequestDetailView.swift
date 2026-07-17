@@ -9,6 +9,10 @@ struct PullRequestDetailView: View {
 
     @State private var tab: Tab = .conversation
     @State private var composerText = ""
+    /// Currently-shown merge method in the merge picker's trigger. Picking any
+    /// row (even the same one) re-fires the merge, preserving the old action-
+    /// menu behavior where every pick immediately merges with that method.
+    @State private var mergeMethod: MergeMethod = .merge
 
     private enum Tab: String, CaseIterable {
         case conversation = "Conversation"
@@ -176,26 +180,17 @@ struct PullRequestDetailView: View {
 
     private var mergeMenu: some View {
         let canMerge = !(model.isLoading || model.detail?.mergeable == false)
-        return HUDMenu(
-            tokens: tokens,
-            items: MergeMethod.allCases.map { HUDMenuItem(id: $0.rawValue, title: $0.rawValue.capitalized) },
-            onPick: { raw in
-                if let method = MergeMethod(rawValue: raw) { Task { await model.merge(method) } }
-            }
-        ) {
-            HStack(spacing: 5) {
-                Image(systemName: "arrow.triangle.merge").font(.system(size: 10, weight: .semibold))
-                Text("Merge").font(AinkradFont.display(12, weight: .medium))
-            }
-            .foregroundStyle(.white.opacity(canMerge ? 0.95 : 0.5))
-            .padding(.horizontal, 12).padding(.vertical, 7)
-            .background(
-                ChamferShape(cut: AinkradRadius.sm)
-                    .fill(tokens.accentPrimary.opacity(canMerge ? 0.9 : 0.4))
-            )
-            .overlay(ChamferShape(cut: AinkradRadius.sm)
-                .strokeBorder(tokens.accentSecondary.opacity(0.4)))
-        }
+        return AinkradSelect(
+            items: MergeMethod.allCases,
+            selection: Binding(
+                get: { mergeMethod },
+                set: { method in
+                    mergeMethod = method
+                    Task { await model.merge(method) }
+                }
+            ),
+            label: { $0.rawValue.capitalized }
+        )
         .disabled(!canMerge)
     }
 
