@@ -140,7 +140,7 @@ struct PullRequestDetailView: View {
     private var composer: some View {
         VStack(alignment: .leading, spacing: 10) {
             GlowRule(tokens: tokens)
-            AinkradTextArea(text: $composerText, placeholder: "Leave a comment…", minHeight: 44)
+            AinkradTextArea(text: $composerText, placeholder: "Leave a comment…", minHeight: 30)
             HStack(spacing: 8) {
                 AinkradButton(title: "Comment", style: .secondary, icon: "text.bubble") {
                     Task { await model.comment(composerText); composerText = "" }
