@@ -52,14 +52,13 @@ struct GitMageSettingsView: View {
                         .font(AinkradFont.fixedMono(11))
                         .foregroundStyle(tokens.foreground.opacity(0.6))
                 }
-                Slider(
+                AinkradSlider(
                     value: Binding(
                         get: { settings.backgroundOpacity },
                         set: { v in settingsStore.update { $0.backgroundOpacity = v } }
                     ),
                     in: 0.2...1.0
                 )
-                .tint(tokens.accentPrimary)
                 Text("Below 100%, the workspace backdrop shows through. Blur is managed by the host.")
                     .font(AinkradFont.fixedDisplay(11))
                     .foregroundStyle(tokens.foreground.opacity(0.45))
@@ -89,14 +88,13 @@ struct GitMageSettingsView: View {
                         .font(AinkradFont.fixedMono(11))
                         .foregroundStyle(tokens.foreground.opacity(0.6))
                 }
-                Slider(
+                AinkradSlider(
                     value: Binding(
                         get: { settings.diffFontSize },
                         set: { v in settingsStore.update { $0.diffFontSize = v.rounded() } }
                     ),
                     in: 9...20
                 )
-                .tint(tokens.accentPrimary)
             }
         }
     }
@@ -115,14 +113,13 @@ struct GitMageSettingsView: View {
                         .font(AinkradFont.fixedMono(11))
                         .foregroundStyle(tokens.foreground.opacity(0.6))
                 }
-                Slider(
+                AinkradSlider(
                     value: Binding(
                         get: { settings.textScale },
                         set: { v in settingsStore.update { $0.textScale = (v * 20).rounded() / 20 } }
                     ),
                     in: 0.8...1.3
                 )
-                .tint(tokens.accentPrimary)
                 Text("Scales every text in Git Mage. The sample below updates live.")
                     .font(AinkradFont.fixedDisplay(11))
                     .foregroundStyle(tokens.foreground.opacity(0.45))
