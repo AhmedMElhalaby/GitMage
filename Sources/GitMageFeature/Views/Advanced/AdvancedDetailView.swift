@@ -54,9 +54,9 @@ struct AdvancedDetailView: View {
                 .font(AinkradFont.display(11))
                 .foregroundStyle(tokens.foreground.opacity(0.6))
             HStack(spacing: 8) {
-                GMButton("Continue", kind: .primary, tokens: tokens) { Task { await model.continueOperation() } }
+                AinkradButton(title: "Continue", style: .primary) { Task { await model.continueOperation() } }
                     .disabled(model.isLoading)
-                GMButton("Abort", kind: .destructive, tokens: tokens) { Task { await model.abortOperation() } }
+                AinkradButton(title: "Abort", style: .danger) { Task { await model.abortOperation() } }
                     .disabled(model.isLoading)
             }
         }
@@ -85,10 +85,10 @@ struct AdvancedDetailView: View {
                     }
 
                     HStack(spacing: 8) {
-                        GMButton("Cherry-pick", kind: .secondary, systemImage: "arrow.right.circle", tokens: tokens) {
+                        AinkradButton(title: "Cherry-pick", style: .secondary, icon: "arrow.right.circle") {
                             Task { await model.cherryPick() }
                         }.disabled(model.isLoading)
-                        GMButton("Revert", kind: .secondary, systemImage: "arrow.uturn.backward", tokens: tokens) {
+                        AinkradButton(title: "Revert", style: .secondary, icon: "arrow.uturn.backward") {
                             Task { await model.revert() }
                         }.disabled(model.isLoading)
                         Spacer()
@@ -101,7 +101,7 @@ struct AdvancedDetailView: View {
                             selection: $model.resetMode, tokens: tokens
                         )
                         .frame(maxWidth: 240)
-                        GMButton("Reset to here", kind: .destructive, systemImage: "arrow.counterclockwise", tokens: tokens) {
+                        AinkradButton(title: "Reset to here", style: .danger, icon: "arrow.counterclockwise") {
                             model.requestReset()
                         }.disabled(model.isLoading)
                         Spacer()
@@ -134,7 +134,7 @@ struct AdvancedDetailView: View {
                             .frame(width: 180)
                     }
                 }
-                GMButton("Rebase", kind: .primary, systemImage: "arrow.triangle.merge", tokens: tokens) {
+                AinkradButton(title: "Rebase", style: .primary, icon: "arrow.triangle.merge") {
                     model.requestRebase()
                 }
                 .disabled(model.isLoading || model.rebaseBase == nil || model.rebaseBase?.isEmpty == true)
@@ -172,7 +172,7 @@ struct AdvancedDetailView: View {
                     .foregroundStyle(tokens.foreground.opacity(0.45))
                 AinkradTextField(text: $model.newTagName, placeholder: "Tag name")
                 AinkradTextField(text: $model.newTagMessage, placeholder: "Message (optional)")
-                GMButton("Create tag", kind: .primary, systemImage: "tag", tokens: tokens) {
+                AinkradButton(title: "Create tag", style: .primary, icon: "tag") {
                     Task { await model.createTag() }
                 }
                 .disabled(model.isLoading || model.newTagName.trimmingCharacters(in: .whitespaces).isEmpty)

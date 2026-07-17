@@ -35,8 +35,8 @@ struct HUDConfirmDialog: View {
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 8) {
                     Spacer()
-                    GMButton("Cancel", kind: .secondary, tokens: tokens, action: onCancel)
-                    GMButton(confirmTitle, kind: isDestructive ? .destructive : .primary, tokens: tokens, action: onConfirm)
+                    AinkradButton(title: "Cancel", style: .secondary, action: onCancel)
+                    AinkradButton(title: confirmTitle, style: isDestructive ? .danger : .primary, action: onConfirm)
                 }
                 .padding(.top, 2)
             }

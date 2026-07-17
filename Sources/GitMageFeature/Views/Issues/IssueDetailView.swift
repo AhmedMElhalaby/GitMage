@@ -76,18 +76,18 @@ struct IssueDetailView: View {
             GlowRule(tokens: tokens)
             AinkradTextArea(text: $composerText, placeholder: "Leave a comment…")
             HStack(spacing: 8) {
-                GMButton("Comment", kind: .secondary, systemImage: "text.bubble", tokens: tokens) {
+                AinkradButton(title: "Comment", style: .secondary, icon: "text.bubble") {
                     Task { await model.comment(composerText); composerText = "" }
                 }
                 .disabled(model.isLoading)
                 Spacer()
                 if detail.state.lowercased() == "open" {
-                    GMButton("Close", kind: .destructive, systemImage: "xmark.circle", tokens: tokens) {
+                    AinkradButton(title: "Close", style: .danger, icon: "xmark.circle") {
                         Task { await model.toggleState() }
                     }
                     .disabled(model.isLoading)
                 } else {
-                    GMButton("Reopen", kind: .primary, systemImage: "arrow.counterclockwise", tokens: tokens) {
+                    AinkradButton(title: "Reopen", style: .primary, icon: "arrow.counterclockwise") {
                         Task { await model.toggleState() }
                     }
                     .disabled(model.isLoading)

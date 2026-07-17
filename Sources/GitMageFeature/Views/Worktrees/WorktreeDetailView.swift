@@ -75,7 +75,7 @@ struct WorktreeDetailView: View {
                 }
             }
             Spacer()
-            GMButton("Open", kind: .primary, systemImage: "arrow.up.forward.square", tokens: tokens) {
+            AinkradButton(title: "Open", style: .primary, icon: "arrow.up.forward.square") {
                 model.open(wt)
             }
         }
@@ -134,8 +134,8 @@ private struct AddWorktreeSheet: View {
 
             HStack {
                 Spacer()
-                GMButton("Cancel", kind: .secondary, tokens: tokens) { model.showAdd = false }
-                GMButton("Add", kind: .primary, systemImage: "plus", tokens: tokens) {
+                AinkradButton(title: "Cancel", style: .secondary) { model.showAdd = false }
+                AinkradButton(title: "Add", style: .primary, icon: "plus") {
                     Task { await model.add(destination: destination) }
                 }
                 .disabled(!canAdd)
@@ -166,7 +166,7 @@ private struct AddWorktreeSheet: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer()
-                GMButton("Choose…", kind: .secondary, systemImage: "folder", tokens: tokens) { chooseDestination() }
+                AinkradButton(title: "Choose…", style: .secondary, icon: "folder") { chooseDestination() }
             }
         }
     }

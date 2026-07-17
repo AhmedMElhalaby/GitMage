@@ -268,7 +268,7 @@ struct CommitBox: View {
 
             HStack {
                 Spacer()
-                GMButton("Commit", kind: .primary, systemImage: "checkmark", tokens: tokens) {
+                AinkradButton(title: "Commit", style: .primary, icon: "checkmark") {
                     model.commitChanges()
                 }
                 .disabled(!canCommit)

@@ -150,55 +150,6 @@ func shortcutTooltip(_ label: String, _ shortcut: String?) -> String {
     return "\(label)  \(shortcut)"
 }
 
-// MARK: - Top-bar action button (Fetch / Pull / Push)
-
-/// A gaming-HUD action button with an inline spinner: while `isLoading`, the
-/// icon is replaced by a rotating accent arc — no external ProgressView.
-struct TopBarActionButton: View {
-    let label: String
-    let icon: String
-    var shortcut: String? = nil
-    var isPrimary: Bool = false
-    let isLoading: Bool
-    let tokens: HostThemeTokens
-    let action: () -> Void
-    @State private var hovering = false
-    @Environment(\.ainkradReduceMotion) private var reduceMotion
-
-    private var iconTint: Color {
-        isPrimary ? .white.opacity(0.95) : tokens.accentSecondary
-    }
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                ZStack {
-                    if isLoading {
-                        GMSpinner(tint: iconTint, size: 13)
-                    } else {
-                        Image(systemName: icon)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(iconTint)
-                    }
-                }
-                .frame(width: 14, height: 14)
-                Text(label)
-                    .font(AinkradFont.display(12, weight: .medium))
-                    .foregroundStyle(isPrimary ? .white.opacity(0.95) : tokens.foreground.opacity(0.9))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .hudButtonSurface(tokens: tokens, kind: isPrimary ? .primary : .secondary, hovering: hovering)
-            .contentShape(Rectangle())
-            .opacity(isLoading ? 0.9 : 1)
-        }
-        .buttonStyle(.plain)
-        .disabled(isLoading)
-        .hudTooltip(shortcutTooltip(label, shortcut), edge: .bottom, active: hovering)
-        .onHover { h in withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) { hovering = h } }
-    }
-}
-
 // MARK: - Shared HUD surface finish
 
 enum HUDButtonKind { case chip, secondary, primary, destructive }
@@ -209,7 +160,7 @@ private struct HUDButtonSurface: ViewModifier {
     let hovering: Bool
 
     // Single choke point: chamfering here cascades to every top-bar chip /
-    // action button / GMButton that finishes with `.hudButtonSurface`.
+    // repo/branch switcher that finishes with `.hudButtonSurface`.
     private var shape: ChamferShape { ChamferShape(cut: AinkradRadius.sm) }
 
     func body(content: Content) -> some View {

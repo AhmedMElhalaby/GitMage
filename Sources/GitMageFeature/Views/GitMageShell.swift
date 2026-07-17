@@ -144,12 +144,15 @@ struct GitMageShell: View {
             }
             Spacer()
             if model.hasActiveRepo {
-                TopBarActionButton(label: "Fetch", icon: "arrow.down.circle", shortcut: hint(.fetch),
-                                   isLoading: model.activeOperation == "fetch", tokens: tokens) { model.fetch() }
-                TopBarActionButton(label: "Pull", icon: "arrow.down.to.line", shortcut: hint(.pull),
-                                   isLoading: model.activeOperation == "pull", tokens: tokens) { model.pull() }
-                TopBarActionButton(label: "Push", icon: "arrow.up.to.line", shortcut: hint(.push), isPrimary: true,
-                                   isLoading: model.activeOperation == "push", tokens: tokens) { model.push() }
+                AinkradButton(title: "Fetch", style: .secondary, icon: "arrow.down.circle",
+                              isLoading: model.activeOperation == "fetch") { model.fetch() }
+                    .ainkradTooltip(shortcutTooltip("Fetch", hint(.fetch)))
+                AinkradButton(title: "Pull", style: .secondary, icon: "arrow.down.to.line",
+                              isLoading: model.activeOperation == "pull") { model.pull() }
+                    .ainkradTooltip(shortcutTooltip("Pull", hint(.pull)))
+                AinkradButton(title: "Push", style: .primary, icon: "arrow.up.to.line",
+                              isLoading: model.activeOperation == "push") { model.push() }
+                    .ainkradTooltip(shortcutTooltip("Push", hint(.push)))
             }
         }
         .padding(.horizontal, 16)
@@ -407,8 +410,8 @@ struct GitMageShell: View {
                 .frame(minWidth: 380)
             HStack {
                 Spacer()
-                GMButton("Cancel", kind: .secondary, tokens: tokens) { model.showClonePrompt = false }
-                GMButton("Choose Destination & Clone", kind: .primary, tokens: tokens) { model.performClone() }
+                AinkradButton(title: "Cancel", style: .secondary) { model.showClonePrompt = false }
+                AinkradButton(title: "Choose Destination & Clone", style: .primary) { model.performClone() }
                     .disabled(model.cloneRemoteURL.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }

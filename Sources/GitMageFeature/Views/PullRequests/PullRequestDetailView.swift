@@ -155,15 +155,15 @@ struct PullRequestDetailView: View {
             GlowRule(tokens: tokens)
             AinkradTextArea(text: $composerText, placeholder: "Leave a comment…")
             HStack(spacing: 8) {
-                GMButton("Comment", kind: .secondary, systemImage: "text.bubble", tokens: tokens) {
+                AinkradButton(title: "Comment", style: .secondary, icon: "text.bubble") {
                     Task { await model.comment(composerText); composerText = "" }
                 }
                 .disabled(model.isLoading)
-                GMButton("Approve", kind: .secondary, systemImage: "checkmark.seal", tokens: tokens) {
+                AinkradButton(title: "Approve", style: .secondary, icon: "checkmark.seal") {
                     Task { await model.review(.approve, body: composerText); composerText = "" }
                 }
                 .disabled(model.isLoading)
-                GMButton("Request changes", kind: .destructive, systemImage: "exclamationmark.bubble", tokens: tokens) {
+                AinkradButton(title: "Request changes", style: .danger, icon: "exclamationmark.bubble") {
                     Task { await model.review(.requestChanges, body: composerText); composerText = "" }
                 }
                 .disabled(model.isLoading)

@@ -25,8 +25,8 @@ struct NewIssueSheet: View {
 
             HStack {
                 Spacer()
-                GMButton("Cancel", kind: .secondary, tokens: tokens) { model.showNew = false }
-                GMButton("Create", kind: .primary, tokens: tokens) { Task { await model.create() } }
+                AinkradButton(title: "Cancel", style: .secondary) { model.showNew = false }
+                AinkradButton(title: "Create", style: .primary) { Task { await model.create() } }
                     .disabled(!canCreate || model.isLoading)
             }
         }
