@@ -35,30 +35,3 @@ struct NeonToggle: View {
         AinkradToggle(isOn: $isOn)
     }
 }
-
-/// Corner targeting brackets drawn around a selected element (the HUD accent
-/// framing). Copied from the host launcher chrome.
-struct TargetingBrackets: Shape {
-    var length: CGFloat = 8
-
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        // Top-left
-        path.move(to: CGPoint(x: rect.minX, y: rect.minY + length))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.minX + length, y: rect.minY))
-        // Top-right
-        path.move(to: CGPoint(x: rect.maxX - length, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + length))
-        // Bottom-right
-        path.move(to: CGPoint(x: rect.maxX, y: rect.maxY - length))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.maxX - length, y: rect.maxY))
-        // Bottom-left
-        path.move(to: CGPoint(x: rect.minX + length, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - length))
-        return path
-    }
-}

@@ -153,7 +153,7 @@ struct PullRequestDetailView: View {
     private var composer: some View {
         VStack(alignment: .leading, spacing: 10) {
             GlowRule(tokens: tokens)
-            HUDTextEditor(text: $composerText, placeholder: "Leave a comment…", tokens: tokens, height: 66)
+            AinkradTextArea(text: $composerText, placeholder: "Leave a comment…")
             HStack(spacing: 8) {
                 GMButton("Comment", kind: .secondary, systemImage: "text.bubble", tokens: tokens) {
                     Task { await model.comment(composerText); composerText = "" }

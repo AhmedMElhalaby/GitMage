@@ -183,7 +183,7 @@ private struct AddWorktreeSheet: View {
     @ViewBuilder private var modeInput: some View {
         switch model.addMode {
         case .newBranch:
-            HUDTextField(placeholder: "Branch name", text: $model.addBranchName, tokens: tokens)
+            AinkradTextField(text: $model.addBranchName, placeholder: "Branch name")
         case .existingBranch:
             HUDMenu(
                 tokens: tokens,
@@ -194,7 +194,7 @@ private struct AddWorktreeSheet: View {
                              isPlaceholder: model.addExistingBranch == nil, tokens: tokens)
             }
         case .detached:
-            HUDTextField(placeholder: "Ref (commit, tag, branch)", text: $model.addRef, tokens: tokens)
+            AinkradTextField(text: $model.addRef, placeholder: "Ref (commit, tag, branch)")
         }
     }
 

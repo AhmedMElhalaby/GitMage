@@ -16,7 +16,6 @@ struct GMButton: View {
     private let title: String
     private let kind: GMButtonKind
     private let systemImage: String?
-    private let tooltip: String?
     private let tokens: HostThemeTokens
     private let action: () -> Void
 
@@ -28,14 +27,12 @@ struct GMButton: View {
         _ title: String,
         kind: GMButtonKind = .secondary,
         systemImage: String? = nil,
-        tooltip: String? = nil,
         tokens: HostThemeTokens,
         action: @escaping () -> Void
     ) {
         self.title = title
         self.kind = kind
         self.systemImage = systemImage
-        self.tooltip = tooltip
         self.tokens = tokens
         self.action = action
     }
@@ -59,7 +56,6 @@ struct GMButton: View {
             .scaleEffect(isPressed ? 0.98 : 1.0)
         }
         .buttonStyle(.plain)
-        .hudTooltip(tooltip ?? "", edge: .bottom, active: isHovering)
         .onHover { hovering in
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) {
                 isHovering = hovering

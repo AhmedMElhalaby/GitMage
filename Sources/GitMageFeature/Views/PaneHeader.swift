@@ -87,60 +87,6 @@ struct GlowRule: View {
     }
 }
 
-/// A HUD multiline text editor with a placeholder and a focus glow — shared by
-/// the commit box and the PR/issue comment composers.
-struct HUDTextEditor: View {
-    @Binding var text: String
-    var placeholder: String
-    let tokens: HostThemeTokens
-    var height: CGFloat = 70
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            TextEditor(text: $text)
-                .font(AinkradFont.display(12))
-                .scrollContentBackground(.hidden)
-                .focused($focused)
-                .frame(height: height)
-                .padding(7)
-            if text.isEmpty {
-                Text(placeholder)
-                    .font(AinkradFont.display(12))
-                    .foregroundStyle(tokens.foreground.opacity(0.35))
-                    .padding(.horizontal, 12).padding(.vertical, 15)
-                    .allowsHitTesting(false)
-            }
-        }
-        .background(ChamferShape(cut: AinkradRadius.sm).fill(tokens.surfaceElevated.opacity(0.5)))
-        .overlay(ChamferShape(cut: AinkradRadius.sm)
-            .strokeBorder(tokens.accentPrimary.opacity(focused ? 0.6 : 0.2), lineWidth: focused ? 1.2 : 1))
-        .shadow(color: focused ? tokens.accentPrimary.opacity(0.25) : .clear, radius: 8)
-    }
-}
-
-/// A single-line HUD text field: plain field on a translucent surface with an
-/// accent focus border. For forms (tag name, branch name, refs, …).
-struct HUDTextField: View {
-    var placeholder: String
-    @Binding var text: String
-    let tokens: HostThemeTokens
-    var mono: Bool = false
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        TextField(placeholder, text: $text)
-            .textFieldStyle(.plain)
-            .font(mono ? AinkradFont.mono(12) : AinkradFont.display(12))
-            .foregroundStyle(tokens.foreground)
-            .focused($focused)
-            .padding(.horizontal, 10).padding(.vertical, 7)
-            .background(ChamferShape(cut: AinkradRadius.sm).fill(tokens.surfaceElevated.opacity(0.5)))
-            .overlay(ChamferShape(cut: AinkradRadius.sm)
-                .strokeBorder(tokens.accentPrimary.opacity(focused ? 0.5 : 0.18)))
-    }
-}
-
 /// A HUD-styled trigger label for a `Menu` (the dropdown popup itself stays
 /// system-rendered): value/placeholder text + a chevron on a translucent chip.
 struct HUDMenuLabel: View {
@@ -162,38 +108,6 @@ struct HUDMenuLabel: View {
         .padding(.horizontal, 10).padding(.vertical, 7)
         .background(ChamferShape(cut: AinkradRadius.sm).fill(tokens.surfaceElevated.opacity(0.5)))
         .overlay(ChamferShape(cut: AinkradRadius.sm).strokeBorder(tokens.accentPrimary.opacity(0.18)))
-    }
-}
-
-/// A HUD search field: magnifier, plain field (searches on submit), clear button.
-struct HUDSearchField: View {
-    @Binding var text: String
-    var placeholder: String
-    let tokens: HostThemeTokens
-    var onSubmit: () -> Void
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        HStack(spacing: 7) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 11)).foregroundStyle(tokens.foreground.opacity(0.4))
-            TextField(placeholder, text: $text)
-                .textFieldStyle(.plain).font(AinkradFont.display(12))
-                .foregroundStyle(tokens.foreground)
-                .focused($focused)
-                .onSubmit(onSubmit)
-            if !text.isEmpty {
-                Button { text = ""; onSubmit() } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 11)).foregroundStyle(tokens.foreground.opacity(0.35))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 10).padding(.vertical, 7)
-        .background(ChamferShape(cut: AinkradRadius.sm).fill(tokens.surfaceElevated.opacity(0.5)))
-        .overlay(ChamferShape(cut: AinkradRadius.sm)
-            .strokeBorder(tokens.accentPrimary.opacity(focused ? 0.5 : 0.18)))
     }
 }
 

@@ -14,9 +14,9 @@ struct NewIssueSheet: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("New Issue").font(AinkradFont.display(18, weight: .semibold))
 
-            HUDTextField(placeholder: "Title", text: $model.newTitle, tokens: tokens)
+            AinkradTextField(text: $model.newTitle, placeholder: "Title")
 
-            HUDTextEditor(text: $model.newBody, placeholder: "Description…", tokens: tokens, height: 120)
+            AinkradTextArea(text: $model.newBody, placeholder: "Description…")
 
             HStack(spacing: 10) {
                 labelsMenu

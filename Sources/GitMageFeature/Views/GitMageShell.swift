@@ -28,6 +28,17 @@ struct GitMageShell: View {
         let s = settingsStore.settings
         return "\(s.textScale)|\(s.displayFontName)|\(s.monoFontName)"
     }
+    /// Bridges GitMage's per-plugin typography into the kit's `\.ainkradTypography`
+    /// env so swapped kit components (text fields, editors, search, and later
+    /// waves) honor the user's display font + text scale. Recomputes with `body`,
+    /// so changing the font/scale in Settings restyles kit controls live.
+    /// NOTE(mono-loss): `AinkradTypography` carries only one (display) family and
+    /// the kit hardcodes mono → JetBrains Mono, so `settings.monoFontName` does
+    /// NOT reach kit components (accepted loss, M6 W1).
+    private var kitTypography: AinkradTypography {
+        let s = settingsStore.settings
+        return AinkradTypography(fontFamilyName: s.displayFontName, scale: CGFloat(s.textScale))
+    }
     private var appearance: GitMageRenderAppearance {
         GitMageAppearanceResolver.resolve(settings: settingsStore.settings, tokens: tokens)
     }
@@ -55,6 +66,7 @@ struct GitMageShell: View {
             // AinkradFont call re-evaluates immediately (fonts are read
             // statically, so there's otherwise no dependency to invalidate on).
             .id(typographyToken)
+            .environment(\.ainkradTypography, kitTypography)
             .overlayPreferenceValue(TooltipKey.self) { item in
                 if let item {
                     GeometryReader { proxy in
@@ -390,8 +402,8 @@ struct GitMageShell: View {
             Text("Clone a Repository").font(AinkradFont.display(18, weight: .semibold))
             Text("Enter a Git remote URL. You'll then choose a destination folder.")
                 .font(AinkradFont.display(12)).foregroundStyle(tokens.foreground.opacity(0.7))
-            HUDTextField(placeholder: "https://github.com/owner/repo.git",
-                         text: $model.cloneRemoteURL, tokens: tokens, mono: true)
+            AinkradTextField(text: $model.cloneRemoteURL,
+                             placeholder: "https://github.com/owner/repo.git")
                 .frame(minWidth: 380)
             HStack {
                 Spacer()

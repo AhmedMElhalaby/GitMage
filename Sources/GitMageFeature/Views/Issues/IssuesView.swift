@@ -65,8 +65,8 @@ struct IssuesContextPane: View {
                 onChange: { Task { await model.load() } }
             )
             .padding(.horizontal, 12)
-            HUDSearchField(text: $model.searchText, placeholder: "Search issues…",
-                           tokens: tokens, onSubmit: { Task { await model.load() } })
+            AinkradSearchField(text: $model.searchText, placeholder: "Search issues…",
+                               onSubmit: { Task { await model.load() } })
                 .padding(.horizontal, 12)
             if !model.repoLabels.isEmpty {
                 LabelFilterBar(labels: model.repoLabels, selected: model.selectedLabels,

@@ -60,8 +60,8 @@ struct PullRequestsContextPane: View {
                 onChange: { Task { await model.load() } }
             )
             .padding(.horizontal, 12)
-            HUDSearchField(text: $model.searchText, placeholder: "Search pull requests…",
-                           tokens: tokens, onSubmit: { Task { await model.load() } })
+            AinkradSearchField(text: $model.searchText, placeholder: "Search pull requests…",
+                               onSubmit: { Task { await model.load() } })
                 .padding(.horizontal, 12)
             if !model.availableLabels.isEmpty {
                 LabelFilterBar(labels: model.availableLabels, selected: model.selectedLabels,

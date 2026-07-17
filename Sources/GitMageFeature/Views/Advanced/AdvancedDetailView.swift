@@ -170,8 +170,8 @@ struct AdvancedDetailView: View {
                 Text("NEW TAG AT \(tagTarget)")
                     .font(AinkradFont.display(9, weight: .semibold)).kerning(1)
                     .foregroundStyle(tokens.foreground.opacity(0.45))
-                HUDTextField(placeholder: "Tag name", text: $model.newTagName, tokens: tokens)
-                HUDTextField(placeholder: "Message (optional)", text: $model.newTagMessage, tokens: tokens)
+                AinkradTextField(text: $model.newTagName, placeholder: "Tag name")
+                AinkradTextField(text: $model.newTagMessage, placeholder: "Message (optional)")
                 GMButton("Create tag", kind: .primary, systemImage: "tag", tokens: tokens) {
                     Task { await model.createTag() }
                 }
