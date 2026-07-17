@@ -61,7 +61,7 @@ struct BranchesContextPane: View {
             .overlay(ChamferShape(cut: AinkradRadius.sm)
                 .strokeBorder(tokens.accentPrimary.opacity(creating ? 0.5 : 0.18)))
 
-            RowIconButton(symbol: "arrow.branch", help: "Create branch", tokens: tokens, action: create)
+            AinkradIconButton(systemName: "arrow.branch", size: 22, tooltip: "Create branch", action: create)
                 .opacity(canCreate ? 1 : 0.4)
                 .allowsHitTesting(canCreate)
         }
@@ -109,15 +109,11 @@ private struct BranchPaneRow: View {
             Spacer(minLength: 4)
 
             if branch.isCurrent {
-                Text("CURRENT")
-                    .font(AinkradFont.mono(8, weight: .bold)).tracking(1)
-                    .foregroundStyle(tokens.accentPrimary)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(Capsule().fill(tokens.accentPrimary.opacity(0.16)))
+                AinkradBadge(text: "CURRENT", tint: tokens.accentPrimary)
             } else {
                 HStack(spacing: 4) {
-                    RowIconButton(symbol: "arrow.right", help: "Checkout", tokens: tokens, action: onCheckout)
-                    RowIconButton(symbol: "trash", help: "Delete", tokens: tokens, action: onDelete)
+                    AinkradIconButton(systemName: "arrow.right", size: 22, tooltip: "Checkout", action: onCheckout)
+                    AinkradIconButton(systemName: "trash", size: 22, tooltip: "Delete", action: onDelete)
                 }
                 .opacity(hovering ? 1 : 0)
                 .allowsHitTesting(hovering)

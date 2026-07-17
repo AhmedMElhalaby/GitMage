@@ -100,44 +100,16 @@ private struct HUDButtonSurface: ViewModifier {
     // repo/branch switcher that finishes with `.hudButtonSurface`.
     private var shape: ChamferShape { ChamferShape(cut: AinkradRadius.sm) }
 
+    // Flat kit chamfer surface — the bespoke gloss gradient, gradient rim, and
+    // "powered edge" capsule were removed so the chip reads like `AinkradButton`
+    // (chamfer fill + a single accent border + a hover-only accent glow).
     func body(content: Content) -> some View {
         content
             .background(fill.clipShape(shape))
-            // Glassy top gloss — a soft sheen across the upper half.
             .overlay(
-                LinearGradient(
-                    colors: [Color.white.opacity(kind == .primary ? 0.22 : 0.10), .clear],
-                    startPoint: .top, endPoint: .center
-                )
-                .clipShape(shape)
-                .allowsHitTesting(false)
+                shape.strokeBorder(tokens.accentSecondary.opacity(hovering ? 0.6 : 0.3), lineWidth: 1)
             )
-            // Gradient rim.
-            .overlay(
-                shape.strokeBorder(
-                    LinearGradient(colors: rimColors, startPoint: .topLeading, endPoint: .bottomTrailing),
-                    lineWidth: 1
-                )
-            )
-            // Bright "powered edge" along the very top.
-            .overlay(alignment: .top) {
-                Capsule()
-                    .fill(tokens.accentSecondary.opacity(hovering ? 0.75 : 0.35))
-                    .frame(height: 1.5)
-                    .padding(.horizontal, 7)
-                    .blur(radius: 0.5)
-            }
             .shadow(color: glowColor, radius: glowRadius, y: hovering ? 3 : 1)
-            .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
-    }
-
-    private var rimColors: [Color] {
-        if kind == .destructive {
-            return [tokens.accentTertiary.opacity(hovering ? 0.8 : 0.45),
-                    tokens.accentTertiary.opacity(hovering ? 0.4 : 0.2)]
-        }
-        return [tokens.accentSecondary.opacity(hovering ? 0.85 : 0.5),
-                tokens.accentPrimary.opacity(hovering ? 0.4 : 0.2)]
     }
 
     @ViewBuilder private var fill: some View {

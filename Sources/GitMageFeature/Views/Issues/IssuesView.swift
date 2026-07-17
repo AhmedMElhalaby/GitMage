@@ -57,7 +57,7 @@ struct IssuesContextPane: View {
     private var toolbar: some View {
         VStack(spacing: 8) {
             PaneHeader(title: "ISSUES", count: model.issues.count, countText: countText, tokens: tokens) {
-                RowIconButton(symbol: "plus", help: "New issue", tokens: tokens) { model.showNew = true }
+                AinkradIconButton(systemName: "plus", size: 22, tooltip: "New issue") { model.showNew = true }
             }
             AinkradSegmentedPicker(
                 items: [IssueState.open, IssueState.closed],

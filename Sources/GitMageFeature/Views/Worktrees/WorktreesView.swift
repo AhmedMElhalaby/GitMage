@@ -16,8 +16,8 @@ struct WorktreesContextPane: View {
     private var header: some View {
         PaneHeader(title: "WORKTREES", count: model.worktrees.count, tokens: tokens) {
             HStack(spacing: 6) {
-                RowIconButton(symbol: "plus", help: "Add worktree", tokens: tokens) { model.showAdd = true }
-                RowIconButton(symbol: "sparkles", help: "Prune stale worktrees", tokens: tokens) {
+                AinkradIconButton(systemName: "plus", size: 22, tooltip: "Add worktree") { model.showAdd = true }
+                AinkradIconButton(systemName: "sparkles", size: 22, tooltip: "Prune stale worktrees") {
                     Task { await model.prune() }
                 }
             }
@@ -120,11 +120,7 @@ private struct WorktreeRow: View {
                 .font(AinkradFont.display(12, weight: .bold))
                 .lineLimit(1)
             if isCurrent {
-                Text("current")
-                    .font(AinkradFont.display(9, weight: .semibold))
-                    .foregroundStyle(tokens.accentPrimary)
-                    .padding(.horizontal, 5).padding(.vertical, 1)
-                    .background(tokens.accentPrimary.opacity(0.15), in: ChamferShape(cut: AinkradRadius.sm))
+                AinkradBadge(text: "current", tint: tokens.accentPrimary)
             }
             Spacer()
             if worktree.isLocked {
@@ -148,10 +144,10 @@ private struct WorktreeRow: View {
 
     private var actionsRow: some View {
         HStack(spacing: 4) {
-            RowIconButton(symbol: "arrow.up.forward.square", help: "Open", tokens: tokens, size: 20, action: onOpen)
-            RowIconButton(symbol: worktree.isLocked ? "lock.open" : "lock",
-                          help: worktree.isLocked ? "Unlock" : "Lock", tokens: tokens, size: 20, action: onToggleLock)
-            RowIconButton(symbol: "trash", help: "Remove", tokens: tokens, size: 20, action: onRemove)
+            AinkradIconButton(systemName: "arrow.up.forward.square", size: 20, tooltip: "Open", action: onOpen)
+            AinkradIconButton(systemName: worktree.isLocked ? "lock.open" : "lock",
+                              size: 20, tooltip: worktree.isLocked ? "Unlock" : "Lock", action: onToggleLock)
+            AinkradIconButton(systemName: "trash", size: 20, tooltip: "Remove", action: onRemove)
             Spacer()
         }
     }

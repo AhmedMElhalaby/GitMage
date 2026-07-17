@@ -10,14 +10,6 @@ struct StatusPill: View {
     let tokens: HostThemeTokens
 
     var body: some View {
-        let color = GMColor.status(kind, tokens)
-        Text(text)
-            .font(AinkradFont.display(10, weight: .semibold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(
-                Capsule().fill(color.opacity(0.15))
-            )
+        AinkradBadge(text: text, tint: GMColor.status(kind, tokens))
     }
 }
