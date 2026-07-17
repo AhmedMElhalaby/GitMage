@@ -156,11 +156,11 @@ struct GitMageSettingsView: View {
                 .font(AinkradFont.fixedDisplay(12, weight: .medium))
                 .foregroundStyle(tokens.foreground.opacity(0.85))
             Spacer()
-            AinkradSearchableSelect(
+            AinkradSelect(
                 items: options,
                 selection: Binding(get: { selection }, set: onSelect),
                 label: { $0 },
-                placeholder: "Search fonts…"
+                searchPlaceholder: "Search fonts…"
             )
             .frame(width: 200)
         }
