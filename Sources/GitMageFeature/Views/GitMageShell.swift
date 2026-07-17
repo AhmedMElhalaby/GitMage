@@ -67,20 +67,6 @@ struct GitMageShell: View {
             // statically, so there's otherwise no dependency to invalidate on).
             .id(typographyToken)
             .environment(\.ainkradTypography, kitTypography)
-            .overlayPreferenceValue(TooltipKey.self) { item in
-                if let item {
-                    GeometryReader { proxy in
-                        let rect = proxy[item.anchor]
-                        HUDTooltipLabel(text: item.text, tokens: tokens)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                            .offset(
-                                x: item.edge == .trailing ? rect.maxX + 8 : rect.minX,
-                                y: item.edge == .trailing ? rect.midY - 12 : rect.maxY + 6
-                            )
-                    }
-                    .allowsHitTesting(false)
-                }
-            }
 
             if let management {
                 GitMageManagementOverlay(

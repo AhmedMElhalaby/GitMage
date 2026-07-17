@@ -202,7 +202,7 @@ struct RowIconButton: View {
                 .overlay(Circle().strokeBorder(tokens.accentPrimary.opacity(hovering ? 0.45 : 0.2)))
         }
         .buttonStyle(.plain)
-        .hudTooltip(help, edge: .bottom, active: hovering)
+        .ainkradTooltip(help)
         .onHover { hovering = $0 }
     }
 }

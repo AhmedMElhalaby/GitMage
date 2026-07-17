@@ -45,7 +45,7 @@ struct HistoryContextPane: View {
                         if model.isLoadingCommits {
                             HStack {
                                 Spacer()
-                                GMSpinner(tint: tokens.accentSecondary, size: 16)
+                                AinkradSpinner(size: 16)
                                 Spacer()
                             }
                             .padding(.vertical, 12)

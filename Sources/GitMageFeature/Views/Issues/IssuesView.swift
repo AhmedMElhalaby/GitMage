@@ -94,7 +94,7 @@ struct IssuesContextPane: View {
 
     @ViewBuilder private var list: some View {
         if model.isLoading {
-            GMSpinner(tint: tokens.accentSecondary, size: 22)
+            AinkradSpinner(size: 22)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let errorMessage = model.errorMessage {
             gateMessage(errorMessage)
@@ -117,7 +117,7 @@ struct IssuesContextPane: View {
                         }
                     }
                     if model.isLoadingMore {
-                        HStack { Spacer(); GMSpinner(tint: tokens.accentSecondary, size: 16); Spacer() }
+                        HStack { Spacer(); AinkradSpinner(size: 16); Spacer() }
                             .padding(.vertical, 12)
                     }
                 }

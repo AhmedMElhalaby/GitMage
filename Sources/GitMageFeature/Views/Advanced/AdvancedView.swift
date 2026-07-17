@@ -11,7 +11,7 @@ struct AdvancedContextPane: View {
     var body: some View {
         VStack(spacing: 0) {
             PaneHeader(title: "COMMITS", count: model.commits.count, tokens: tokens) {
-                if model.isLoading { GMSpinner(tint: tokens.accentSecondary, size: 16) }
+                if model.isLoading { AinkradSpinner(size: 16) }
             }
 
             if model.commits.isEmpty {

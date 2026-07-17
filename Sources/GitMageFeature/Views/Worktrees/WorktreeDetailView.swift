@@ -39,7 +39,7 @@ struct WorktreeDetailView: View {
             GlowRule(tokens: tokens)
 
             if model.isLoadingGraph {
-                GMSpinner(tint: tokens.accentSecondary, size: 22)
+                AinkradSpinner(size: 22)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.graphRows.isEmpty {
                 EmptyStateView(icon: "point.3.connected.trianglepath.dotted", title: "No history",
