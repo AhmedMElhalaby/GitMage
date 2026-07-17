@@ -74,7 +74,12 @@ struct IssueDetailView: View {
     private func composer(_ detail: IssueDetail) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             GlowRule(tokens: tokens)
-            AinkradTextArea(text: $composerText, placeholder: "Leave a comment…", minHeight: 30)
+            AinkradTextArea(text: $composerText, placeholder: "Leave a comment…", minHeight: 34, maxHeight: 80,
+                            onSubmit: {
+                                guard !model.isLoading,
+                                      !composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                                Task { await model.comment(composerText); composerText = "" }
+                            })
             HStack(spacing: 8) {
                 AinkradButton(title: "Comment", style: .secondary, icon: "text.bubble") {
                     Task { await model.comment(composerText); composerText = "" }
