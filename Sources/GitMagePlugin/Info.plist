@@ -23,7 +23,7 @@
   <key>AinkradIconSymbol</key>
   <string>wand.and.stars</string>
   <key>AinkradAPIVersion</key>
-  <integer>6</integer>
+  <integer>7</integer>
   <key>NSPrincipalClass</key>
   <string>GitMageEntryPoint</string>
 </dict>
