@@ -17,7 +17,7 @@ settings:
 packages:
   AinkradAppKit:
     url: https://github.com/AhmedMElhalaby/AinkradAppKit
-    revision: bbad66a43c414d0e9c22e193ba3d326fb5d23532
+    revision: e68f8365785c68b7a98b19d86b521f1d358afe00
 
 targets:
   GitMageFeature:
@@ -47,6 +47,11 @@ targets:
         MACH_O_TYPE: mh_bundle
         LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks"
         OTHER_LDFLAGS: ["-lGitMageFeature"]
+    postBuildScripts:
+      # Generate AinkradAPIVersion from the linked SDK rather than
+      # trusting the hand-typed value in Info.plist — see the script.
+      - script: "\"$SRCROOT/scripts/stamp-api-version.sh\""
+        name: Stamp AinkradAPIVersion
 
   GitMageFeatureTests:
     type: bundle.unit-test
