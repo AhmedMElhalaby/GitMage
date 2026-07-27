@@ -30,3 +30,17 @@ public struct GitMageApp: AinkradApp {
     }
 }
 
+/// Generation 8: release this instance when the host closes it.
+///
+/// `GitMageRuntime` held three static, never-evicted registries — settings
+/// store, context bridge, and the `gitmage.git_op` action token. Closing Git
+/// Mage left all three live for the rest of the process, including a context
+/// source the agent kept consulting.
+///
+/// `host` is nil here because teardown is keyed on identity alone; the runtime
+/// keeps the tokens it needs to unregister.
+extension GitMageApp: AinkradAppTeardown {
+    public static func teardown(instance: PluginInstanceID) {
+        GitMageRuntime.teardown(instance: instance, host: nil)
+    }
+}

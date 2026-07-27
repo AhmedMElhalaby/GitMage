@@ -90,15 +90,84 @@ enum GitStatusParser {
         return Int(digits) ?? 0
     }
 
+    /// Decodes the C-style quoting `git status --short` applies to any path
+    /// containing non-ASCII bytes, a quote, a backslash or a control character:
+    /// the whole path is wrapped in `"` and the offending bytes are written as
+    /// backslash escapes (`\303\251` for `é`, `\"`, `\t`, …).
+    ///
+    /// The parser previously took the remainder of the line **verbatim**, so
+    /// for `"src/caf\303\251.txt"` it produced a `filePath` that included the
+    /// surrounding quotes and the literal escape text. That path does not
+    /// exist, so every subsequent `git add`/`git checkout --` on it failed —
+    /// staging and discarding were simply broken for any file whose name wasn't
+    /// plain ASCII.
+    ///
+    /// Octal escapes are decoded at the **byte** level and only then interpreted
+    /// as UTF-8: `é` is two bytes (`\303\251`), and decoding each escape to its
+    /// own Character would produce mojibake instead of the original name.
+    static func unquotePath(_ raw: String) -> String {
+        guard raw.count >= 2, raw.hasPrefix("\""), raw.hasSuffix("\"") else { return raw }
+        let body = Array(raw.dropFirst().dropLast().utf8)
+        var bytes: [UInt8] = []
+        bytes.reserveCapacity(body.count)
+        var i = 0
+        while i < body.count {
+            guard body[i] == UInt8(ascii: "\\"), i + 1 < body.count else {
+                bytes.append(body[i]); i += 1; continue
+            }
+            let next = body[i + 1]
+            switch next {
+            case UInt8(ascii: "n"): bytes.append(0x0A); i += 2
+            case UInt8(ascii: "t"): bytes.append(0x09); i += 2
+            case UInt8(ascii: "r"): bytes.append(0x0D); i += 2
+            case UInt8(ascii: "\""): bytes.append(0x22); i += 2
+            case UInt8(ascii: "\\"): bytes.append(0x5C); i += 2
+            case UInt8(ascii: "0")...UInt8(ascii: "7"):
+                // Exactly three octal digits, per git's quoting.
+                let digits = body[(i + 1)..<min(i + 4, body.count)]
+                guard digits.count == 3,
+                      let value = UInt16(String(decoding: digits, as: UTF8.self), radix: 8),
+                      value <= 0xFF else {
+                    bytes.append(body[i]); i += 1; continue
+                }
+                bytes.append(UInt8(value)); i += 4
+            default:
+                bytes.append(body[i]); i += 1
+            }
+        }
+        return String(decoding: bytes, as: UTF8.self)
+    }
+
+    /// Finds the ` -> ` that separates a rename's two paths, ignoring any that
+    /// appears **inside** a quoted path — a file literally named `a -> b` is
+    /// legal, and splitting on it would silently produce two wrong paths.
+    private static func renameSeparatorRange(in remainder: String) -> Range<String.Index>? {
+        var inQuotes = false
+        var escaped = false
+        var index = remainder.startIndex
+        while index < remainder.endIndex {
+            let ch = remainder[index]
+            if escaped { escaped = false; index = remainder.index(after: index); continue }
+            if ch == "\\" && inQuotes { escaped = true; index = remainder.index(after: index); continue }
+            if ch == "\"" { inQuotes.toggle(); index = remainder.index(after: index); continue }
+            if !inQuotes, remainder[index...].hasPrefix(" -> ") {
+                return index..<remainder.index(index, offsetBy: 4)
+            }
+            index = remainder.index(after: index)
+        }
+        return nil
+    }
+
     private static func parseChangeLine(_ line: String) -> GitChange? {
         guard line.count >= 3 else { return nil }
         let statusCode = String(line.prefix(2))
         let remainder = String(line.dropFirst(3))
         if statusCode == "!!" {
+            let path = unquotePath(remainder)
             return GitChange(
-                id: "\(statusCode):\(remainder)",
-                path: remainder,
-                filePath: remainder,
+                id: "\(statusCode):\(path)",
+                path: path,
+                filePath: path,
                 sourcePath: nil,
                 statusCode: statusCode,
                 kind: .ignored
@@ -110,16 +179,17 @@ enum GitStatusParser {
         let sourcePath: String?
         let kind: GitChangeKind
 
-        if let renameRange = remainder.range(of: " -> ") {
-            let oldPath = String(remainder[..<renameRange.lowerBound])
-            let newPath = String(remainder[renameRange.upperBound...])
+        if let renameRange = renameSeparatorRange(in: remainder) {
+            let oldPath = unquotePath(String(remainder[..<renameRange.lowerBound]))
+            let newPath = unquotePath(String(remainder[renameRange.upperBound...]))
             displayPath = "\(oldPath) → \(newPath)"
             filePath = newPath
             sourcePath = oldPath
             kind = .renamed
         } else {
-            displayPath = remainder
-            filePath = remainder
+            let path = unquotePath(remainder)
+            displayPath = path
+            filePath = path
             sourcePath = nil
             kind = kindForStatus(statusCode)
         }

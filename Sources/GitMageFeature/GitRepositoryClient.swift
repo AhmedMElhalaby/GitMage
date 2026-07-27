@@ -11,6 +11,9 @@ enum GitRepositoryError: Error, LocalizedError, Equatable {
     case nothingToCommit
     case detachedHead
     case commandFailed(String)
+    /// An argument git would read as an option (or a transport helper) that
+    /// this module did not author — see `GitArgumentGuard`.
+    case unsafeArgument(String)
 
     var errorDescription: String? {
         switch self {
@@ -34,6 +37,8 @@ enum GitRepositoryError: Error, LocalizedError, Equatable {
             return "You are not on a branch (detached HEAD). Check out a branch first."
         case .commandFailed(let message):
             return message
+        case .unsafeArgument(let argument):
+            return "Refused: \"\(argument)\" would be read by git as an option, not as a value."
         }
     }
 }
@@ -43,15 +48,15 @@ actor GitRepositoryClient {
     /// re-run `rev-parse --show-toplevel` on every call.
     private var rootCache: [String: String] = [:]
 
-    func isRepository(at path: String) -> Bool {
-        (try? validateRepositoryPath(path)) != nil
+    func isRepository(at path: String) async -> Bool {
+        (try? await validateRepositoryPath(path)) != nil
     }
 
-    func loadSnapshot(at path: String) throws -> GitRepositorySnapshot {
-        let repositoryURL = try validateRepositoryPath(path)
-        let rootPath = try runGit(["rev-parse", "--show-toplevel"], in: repositoryURL).trimmingCharacters(in: .whitespacesAndNewlines)
-        let statusOutput = try runGit(["status", "--short", "--branch"], in: URL(fileURLWithPath: rootPath))
-        let lastCommitSummary = try? runGit(["log", "-1", "--pretty=format:%s"], in: URL(fileURLWithPath: rootPath)).trimmingCharacters(in: .whitespacesAndNewlines)
+    func loadSnapshot(at path: String) async throws -> GitRepositorySnapshot {
+        let repositoryURL = try await validateRepositoryPath(path)
+        let rootPath = try await runGit(["rev-parse", "--show-toplevel"], in: repositoryURL).trimmingCharacters(in: .whitespacesAndNewlines)
+        let statusOutput = try await runGit(["status", "--short", "--branch"], in: URL(fileURLWithPath: rootPath))
+        let lastCommitSummary = try? await runGit(["log", "-1", "--pretty=format:%s"], in: URL(fileURLWithPath: rootPath)).trimmingCharacters(in: .whitespacesAndNewlines)
         return GitStatusParser.parse(
             statusOutput: statusOutput,
             repositoryRoot: rootPath,
@@ -59,10 +64,10 @@ actor GitRepositoryClient {
         )
     }
 
-    func loadBranches(at path: String) throws -> [GitBranchSummary] {
-        let repositoryURL = try validateRepositoryPath(path)
-        let rootPath = try runGit(["rev-parse", "--show-toplevel"], in: repositoryURL).trimmingCharacters(in: .whitespacesAndNewlines)
-        let output = try runGit([
+    func loadBranches(at path: String) async throws -> [GitBranchSummary] {
+        let repositoryURL = try await validateRepositoryPath(path)
+        let rootPath = try await runGit(["rev-parse", "--show-toplevel"], in: repositoryURL).trimmingCharacters(in: .whitespacesAndNewlines)
+        let output = try await runGit([
             "for-each-ref",
             "--format=%(HEAD)\t%(refname:short)\t%(upstream:short)\t%(upstream:trackshort)",
             "refs/heads"
@@ -70,163 +75,171 @@ actor GitRepositoryClient {
         return GitBranchParser.parse(output: output)
     }
 
-    func checkoutBranch(_ branchName: String, in path: String) throws {
-        let repositoryURL = try validateRepositoryPath(path)
-        let rootPath = try runGit(["rev-parse", "--show-toplevel"], in: repositoryURL).trimmingCharacters(in: .whitespacesAndNewlines)
-        _ = try runGit(["checkout", branchName], in: URL(fileURLWithPath: rootPath))
+    func checkoutBranch(_ branchName: String, in path: String) async throws {
+        let repositoryURL = try await validateRepositoryPath(path)
+        let rootPath = try await runGit(["rev-parse", "--show-toplevel"], in: repositoryURL).trimmingCharacters(in: .whitespacesAndNewlines)
+        _ = try await runGit(["checkout", branchName], in: URL(fileURLWithPath: rootPath))
     }
 
-    func stageAllChanges(in path: String) throws {
-        let rootURL = try repositoryRootURL(for: path)
-        _ = try runGit(["add", "-A"], in: rootURL)
+    func stageAllChanges(in path: String) async throws {
+        let rootURL = try await repositoryRootURL(for: path)
+        _ = try await runGit(["add", "-A"], in: rootURL)
     }
 
     /// Unstages every staged change. Before the first commit there is no HEAD to
     /// reset against, so the whole index is cleared instead.
-    func unstageAllChanges(in path: String) throws {
-        let rootURL = try repositoryRootURL(for: path)
-        if try hasHead(in: rootURL) {
-            _ = try runGit(["reset"], in: rootURL)
+    func unstageAllChanges(in path: String) async throws {
+        let rootURL = try await repositoryRootURL(for: path)
+        if try await hasHead(in: rootURL) {
+            _ = try await runGit(["reset"], in: rootURL)
         } else {
-            _ = try runGit(["rm", "-r", "--cached", "."], in: rootURL)
+            _ = try await runGit(["rm", "-r", "--cached", "."], in: rootURL)
         }
     }
 
-    func stage(change: GitChange, in path: String) throws {
-        let rootURL = try repositoryRootURL(for: path)
+    func stage(change: GitChange, in path: String) async throws {
+        let rootURL = try await repositoryRootURL(for: path)
         if change.kind == .renamed, let sourcePath = change.sourcePath {
-            _ = try runGit(["add", sourcePath, change.filePath], in: rootURL)
+            _ = try await runGit(["add", sourcePath, change.filePath], in: rootURL)
         } else {
-            _ = try runGit(["add", change.filePath], in: rootURL)
+            _ = try await runGit(["add", change.filePath], in: rootURL)
         }
     }
 
-    func unstage(change: GitChange, in path: String) throws {
-        let rootURL = try repositoryRootURL(for: path)
+    func unstage(change: GitChange, in path: String) async throws {
+        let rootURL = try await repositoryRootURL(for: path)
         guard change.canUnstage else { return }
-        if try !hasHead(in: rootURL) {
+        if try await !hasHead(in: rootURL) {
             if change.kind == .renamed, let sourcePath = change.sourcePath {
-                _ = try runGit(["rm", "--cached", "--", sourcePath, change.filePath], in: rootURL)
+                _ = try await runGit(["rm", "--cached", "--", sourcePath, change.filePath], in: rootURL)
             } else {
-                _ = try runGit(["rm", "--cached", "--", change.filePath], in: rootURL)
+                _ = try await runGit(["rm", "--cached", "--", change.filePath], in: rootURL)
             }
             return
         }
 
         if change.kind == .renamed, let sourcePath = change.sourcePath {
-            _ = try runGit(["restore", "--staged", "--", sourcePath, change.filePath], in: rootURL)
+            _ = try await runGit(["restore", "--staged", "--", sourcePath, change.filePath], in: rootURL)
         } else {
-            _ = try runGit(["restore", "--staged", "--", change.filePath], in: rootURL)
+            _ = try await runGit(["restore", "--staged", "--", change.filePath], in: rootURL)
         }
     }
 
-    func discard(change: GitChange, in path: String) throws {
-        let rootURL = try repositoryRootURL(for: path)
+    func discard(change: GitChange, in path: String) async throws {
+        let rootURL = try await repositoryRootURL(for: path)
         switch change.kind {
         case .untracked:
-            _ = try runGit(["clean", "-f", "--", change.filePath], in: rootURL)
+            _ = try await runGit(["clean", "-f", "--", change.filePath], in: rootURL)
         case .renamed:
             if let sourcePath = change.sourcePath {
-                _ = try runGit(["restore", "--source=HEAD", "--worktree", "--staged", "--", sourcePath, change.filePath], in: rootURL)
+                _ = try await runGit(["restore", "--source=HEAD", "--worktree", "--staged", "--", sourcePath, change.filePath], in: rootURL)
             } else {
-                _ = try runGit(["restore", "--source=HEAD", "--worktree", "--staged", "--", change.filePath], in: rootURL)
+                _ = try await runGit(["restore", "--source=HEAD", "--worktree", "--staged", "--", change.filePath], in: rootURL)
             }
         default:
-            _ = try runGit(["restore", "--source=HEAD", "--worktree", "--staged", "--", change.filePath], in: rootURL)
+            _ = try await runGit(["restore", "--source=HEAD", "--worktree", "--staged", "--", change.filePath], in: rootURL)
         }
     }
 
-    func commit(message: String, in path: String) throws {
+    func commit(message: String, in path: String) async throws {
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw GitRepositoryError.invalidCommitMessage }
 
-        let rootURL = try repositoryRootURL(for: path)
-        let staged = try runGit(["diff", "--cached", "--name-only"], in: rootURL)
+        let rootURL = try await repositoryRootURL(for: path)
+        let staged = try await runGit(["diff", "--cached", "--name-only"], in: rootURL)
         guard !staged.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw GitRepositoryError.nothingToCommit
         }
-        _ = try runGit(["commit", "-m", trimmed], in: rootURL)
+        _ = try await runGit(["commit", "-m", trimmed], in: rootURL)
     }
 
-    func createBranch(_ name: String, in path: String) throws {
+    func createBranch(_ name: String, in path: String) async throws {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw GitRepositoryError.invalidBranchName }
-        let rootURL = try repositoryRootURL(for: path)
-        _ = try runGit(["checkout", "-b", trimmed], in: rootURL)
+        let rootURL = try await repositoryRootURL(for: path)
+        _ = try await runGit(["checkout", "-b", trimmed], in: rootURL)
     }
 
-    func fetch(in path: String) throws {
-        let rootURL = try repositoryRootURL(for: path)
-        _ = try runGit(["fetch", "--all", "--prune"], in: rootURL)
+    func fetch(in path: String) async throws {
+        let rootURL = try await repositoryRootURL(for: path)
+        _ = try await runGit(["fetch", "--all", "--prune"], in: rootURL)
     }
 
     /// Fast-forward-only pull. Surfaces git's error when the branch has diverged.
-    func pull(in path: String) throws {
-        let rootURL = try repositoryRootURL(for: path)
-        _ = try runGit(["pull", "--ff-only"], in: rootURL)
+    func pull(in path: String) async throws {
+        let rootURL = try await repositoryRootURL(for: path)
+        _ = try await runGit(["pull", "--ff-only"], in: rootURL)
     }
 
     /// Pushes the current branch, setting `origin/<branch>` as upstream when none exists.
-    func push(in path: String) throws {
-        let rootURL = try repositoryRootURL(for: path)
-        let branch = try runGit(["rev-parse", "--abbrev-ref", "HEAD"], in: rootURL)
+    func push(in path: String) async throws {
+        let rootURL = try await repositoryRootURL(for: path)
+        let branch = try await runGit(["rev-parse", "--abbrev-ref", "HEAD"], in: rootURL)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard branch != "HEAD", !branch.isEmpty else { throw GitRepositoryError.detachedHead }
 
-        let hasUpstream = (try? runGit(
+        let hasUpstream = (try? await runGit(
             ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
             in: rootURL
         )) != nil
 
         if hasUpstream {
-            _ = try runGit(["push"], in: rootURL)
+            _ = try await runGit(["push"], in: rootURL)
         } else {
-            _ = try runGit(["push", "-u", "origin", branch], in: rootURL)
+            _ = try await runGit(["push", "-u", "origin", branch], in: rootURL)
         }
     }
 
-    func stashPush(in path: String) throws {
-        let rootURL = try repositoryRootURL(for: path)
-        _ = try runGit(["stash", "push", "--include-untracked"], in: rootURL)
+    func stashPush(in path: String) async throws {
+        let rootURL = try await repositoryRootURL(for: path)
+        _ = try await runGit(["stash", "push", "--include-untracked"], in: rootURL)
     }
 
-    func stashPop(in path: String) throws {
-        let rootURL = try repositoryRootURL(for: path)
-        _ = try runGit(["stash", "pop"], in: rootURL)
+    func stashPop(in path: String) async throws {
+        let rootURL = try await repositoryRootURL(for: path)
+        _ = try await runGit(["stash", "pop"], in: rootURL)
     }
 
-    func stashApply(_ entry: GitStashEntry, in path: String) throws {
-        let rootURL = try repositoryRootURL(for: path)
-        _ = try runGit(["stash", "apply", entry.id], in: rootURL)
+    func stashApply(_ entry: GitStashEntry, in path: String) async throws {
+        let rootURL = try await repositoryRootURL(for: path)
+        _ = try await runGit(["stash", "apply", entry.id], in: rootURL)
     }
 
-    func stashDrop(_ entry: GitStashEntry, in path: String) throws {
-        let rootURL = try repositoryRootURL(for: path)
-        _ = try runGit(["stash", "drop", entry.id], in: rootURL)
+    func stashDrop(_ entry: GitStashEntry, in path: String) async throws {
+        let rootURL = try await repositoryRootURL(for: path)
+        _ = try await runGit(["stash", "drop", entry.id], in: rootURL)
     }
 
-    func loadStashes(in path: String) throws -> [GitStashEntry] {
-        let rootURL = try repositoryRootURL(for: path)
-        let output = try runGit(["stash", "list", "--format=%gd%x09%gs"], in: rootURL)
+    func loadStashes(in path: String) async throws -> [GitStashEntry] {
+        let rootURL = try await repositoryRootURL(for: path)
+        let output = try await runGit(["stash", "list", "--format=%gd%x09%gs"], in: rootURL)
         return GitStashParser.parse(output: output)
     }
 
     /// Initializes a plain directory as a new git repository.
-    func initRepository(at path: String) throws {
+    func initRepository(at path: String) async throws {
         let expanded = (path as NSString).expandingTildeInPath
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: expanded, isDirectory: &isDirectory),
               isDirectory.boolValue else {
             throw GitRepositoryError.pathDoesNotExist(path)
         }
-        _ = try runGit(["init"], in: URL(fileURLWithPath: expanded, isDirectory: true))
+        _ = try await runGit(["init"], in: URL(fileURLWithPath: expanded, isDirectory: true))
         rootCache[path] = nil
     }
 
     /// Clones `remoteURL` into `parentDirectory` and returns the new repository path.
-    func clone(remoteURL: String, into parentDirectory: String) throws -> String {
+    func clone(remoteURL: String, into parentDirectory: String) async throws -> String {
         let trimmedURL = remoteURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedURL.isEmpty else { throw GitRepositoryError.invalidRemoteURL }
+        // Transport allowlist. `runGit`'s guard already blocks `ext::` and
+        // leading-dash options, but a clone URL selects a *transport*, and git
+        // will happily invoke any `git-remote-<helper>` on PATH for a scheme it
+        // doesn't recognise. Checking here names the real constraint at the one
+        // place a URL enters the system.
+        if let rejected = GitArgumentGuard.rejectedCloneURL(trimmedURL) {
+            throw GitRepositoryError.unsafeArgument(rejected)
+        }
 
         let parentExpanded = (parentDirectory as NSString).expandingTildeInPath
         var isDirectory: ObjCBool = false
@@ -240,7 +253,7 @@ actor GitRepositoryClient {
             GitRepositoryClient.repositoryName(fromRemote: trimmedURL),
             isDirectory: true
         )
-        _ = try runGit(["clone", trimmedURL, destinationURL.path], in: parentURL)
+        _ = try await runGit(["clone", trimmedURL, destinationURL.path], in: parentURL)
         return destinationURL.path
     }
 
@@ -253,9 +266,9 @@ actor GitRepositoryClient {
         return components.last ?? "repository"
     }
 
-    func loadDiff(for change: GitChange, in path: String) throws -> GitDiffSnapshot {
-        let repositoryURL = try validateRepositoryPath(path)
-        let rootPath = try runGit(["rev-parse", "--show-toplevel"], in: repositoryURL).trimmingCharacters(in: .whitespacesAndNewlines)
+    func loadDiff(for change: GitChange, in path: String) async throws -> GitDiffSnapshot {
+        let repositoryURL = try await validateRepositoryPath(path)
+        let rootPath = try await runGit(["rev-parse", "--show-toplevel"], in: repositoryURL).trimmingCharacters(in: .whitespacesAndNewlines)
         let rootURL = URL(fileURLWithPath: rootPath)
         let title = change.kind == .renamed ? "\(change.sourcePath ?? change.path) → \(change.filePath)" : change.filePath
 
@@ -278,7 +291,7 @@ actor GitRepositoryClient {
                 : ["diff", "--no-ext-diff", "--unified=3", "--", change.filePath]
         }
 
-        let output = try runGit(
+        let output = try await runGit(
             arguments,
             in: rootURL,
             acceptedExitCodes: change.kind == .untracked ? [0, 1] : [0]
@@ -293,20 +306,20 @@ actor GitRepositoryClient {
     }
 
     /// Total number of commits reachable from HEAD (0 before the first commit).
-    func commitCount(in path: String) throws -> Int {
-        let rootURL = try repositoryRootURL(for: path)
-        guard try hasHead(in: rootURL) else { return 0 }
-        let output = try runGit(["rev-list", "--count", "HEAD"], in: rootURL)
+    func commitCount(in path: String) async throws -> Int {
+        let rootURL = try await repositoryRootURL(for: path)
+        guard try await hasHead(in: rootURL) else { return 0 }
+        let output = try await runGit(["rev-list", "--count", "HEAD"], in: rootURL)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return Int(output) ?? 0
     }
 
     /// Commits with parent SHAs, for the commit-graph view.
-    func loadGraphCommits(limit: Int, in path: String) throws -> [GraphCommit] {
-        let rootURL = try repositoryRootURL(for: path)
-        guard try hasHead(in: rootURL) else { return [] }
+    func loadGraphCommits(limit: Int, in path: String) async throws -> [GraphCommit] {
+        let rootURL = try await repositoryRootURL(for: path)
+        guard try await hasHead(in: rootURL) else { return [] }
         let sep = "\u{1f}"
-        let output = try runGit([
+        let output = try await runGit([
             "log",
             "--topo-order",
             "--max-count=\(max(1, limit))",
@@ -315,10 +328,10 @@ actor GitRepositoryClient {
         return GitGraphParser.parse(output)
     }
 
-    func loadLog(skip: Int = 0, limit: Int, in path: String) throws -> [GitCommitSummary] {
-        let rootURL = try repositoryRootURL(for: path)
-        guard try hasHead(in: rootURL) else { return [] }
-        let output = try runGit([
+    func loadLog(skip: Int = 0, limit: Int, in path: String) async throws -> [GitCommitSummary] {
+        let rootURL = try await repositoryRootURL(for: path)
+        guard try await hasHead(in: rootURL) else { return [] }
+        let output = try await runGit([
             "log",
             "--skip=\(max(0, skip))",
             "--max-count=\(max(1, limit))",
@@ -327,22 +340,22 @@ actor GitRepositoryClient {
         return GitLogParser.parse(output: output)
     }
 
-    func remoteInfo(in path: String) throws -> RepoRef? {
-        let rootURL = try repositoryRootURL(for: path)
-        let url = (try? runGit(["remote", "get-url", "origin"], in: rootURL))?
+    func remoteInfo(in path: String) async throws -> RepoRef? {
+        let rootURL = try await repositoryRootURL(for: path)
+        let url = (try? await runGit(["remote", "get-url", "origin"], in: rootURL))?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url, !url.isEmpty else { return nil }
         return RemoteInfoParser.parse(remoteURL: url)
     }
 
-    func loadWorktrees(in path: String) throws -> [GitWorktree] {
-        let rootURL = try repositoryRootURL(for: path)
-        let out = try runGit(["worktree", "list", "--porcelain"], in: rootURL)
+    func loadWorktrees(in path: String) async throws -> [GitWorktree] {
+        let rootURL = try await repositoryRootURL(for: path)
+        let out = try await runGit(["worktree", "list", "--porcelain"], in: rootURL)
         return GitWorktreeParser.parse(porcelain: out)
     }
 
-    func addWorktree(path: String, base: WorktreeBase, in repoPath: String) throws {
-        let rootURL = try repositoryRootURL(for: repoPath)
+    func addWorktree(path: String, base: WorktreeBase, in repoPath: String) async throws {
+        let rootURL = try await repositoryRootURL(for: repoPath)
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw GitRepositoryError.pathDoesNotExist(path) }
         var args = ["worktree", "add"]
@@ -351,38 +364,38 @@ actor GitRepositoryClient {
         case .existingBranch(let name): args += [trimmed, name]
         case .detached(let ref):        args += ["--detach", trimmed, ref]
         }
-        _ = try runGit(args, in: rootURL)
+        _ = try await runGit(args, in: rootURL)
     }
 
-    func removeWorktree(path: String, force: Bool, in repoPath: String) throws {
-        let rootURL = try repositoryRootURL(for: repoPath)
+    func removeWorktree(path: String, force: Bool, in repoPath: String) async throws {
+        let rootURL = try await repositoryRootURL(for: repoPath)
         var args = ["worktree", "remove"]
         if force { args.append("--force") }
         args.append(path)
-        _ = try runGit(args, in: rootURL)
+        _ = try await runGit(args, in: rootURL)
     }
 
-    func pruneWorktrees(in repoPath: String) throws {
-        let rootURL = try repositoryRootURL(for: repoPath)
-        _ = try runGit(["worktree", "prune"], in: rootURL)
+    func pruneWorktrees(in repoPath: String) async throws {
+        let rootURL = try await repositoryRootURL(for: repoPath)
+        _ = try await runGit(["worktree", "prune"], in: rootURL)
     }
 
-    func lockWorktree(path: String, reason: String?, in repoPath: String) throws {
-        let rootURL = try repositoryRootURL(for: repoPath)
+    func lockWorktree(path: String, reason: String?, in repoPath: String) async throws {
+        let rootURL = try await repositoryRootURL(for: repoPath)
         var args = ["worktree", "lock"]
         if let reason, !reason.isEmpty { args += ["--reason", reason] }
         args.append(path)
-        _ = try runGit(args, in: rootURL)
+        _ = try await runGit(args, in: rootURL)
     }
 
-    func unlockWorktree(path: String, in repoPath: String) throws {
-        let rootURL = try repositoryRootURL(for: repoPath)
-        _ = try runGit(["worktree", "unlock", path], in: rootURL)
+    func unlockWorktree(path: String, in repoPath: String) async throws {
+        let rootURL = try await repositoryRootURL(for: repoPath)
+        _ = try await runGit(["worktree", "unlock", path], in: rootURL)
     }
 
-    func loadCommitDiff(sha: String, in path: String) throws -> GitDiffSnapshot {
-        let rootURL = try repositoryRootURL(for: path)
-        let output = try runGit(
+    func loadCommitDiff(sha: String, in path: String) async throws -> GitDiffSnapshot {
+        let rootURL = try await repositoryRootURL(for: path)
+        let output = try await runGit(
             ["show", "--no-color", "--no-ext-diff", "--unified=3", "--format=medium", sha],
             in: rootURL
         )
@@ -394,9 +407,9 @@ actor GitRepositoryClient {
         )
     }
 
-    func stashDiff(_ id: String, in path: String) throws -> GitDiffSnapshot {
-        let rootURL = try repositoryRootURL(for: path)
-        let output = try runGit(
+    func stashDiff(_ id: String, in path: String) async throws -> GitDiffSnapshot {
+        let rootURL = try await repositoryRootURL(for: path)
+        let output = try await runGit(
             ["stash", "show", "-p", "--no-color", "--no-ext-diff", "--unified=3", id],
             in: rootURL
         )
@@ -408,14 +421,14 @@ actor GitRepositoryClient {
         )
     }
 
-    func deleteBranch(_ name: String, in path: String) throws {
+    func deleteBranch(_ name: String, in path: String) async throws {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw GitRepositoryError.invalidBranchName }
-        let rootURL = try repositoryRootURL(for: path)
-        _ = try runGit(["branch", "-d", trimmed], in: rootURL)   // safe delete; refuses unmerged
+        let rootURL = try await repositoryRootURL(for: path)
+        _ = try await runGit(["branch", "-d", trimmed], in: rootURL)   // safe delete; refuses unmerged
     }
 
-    private func validateRepositoryPath(_ path: String) throws -> URL {
+    private func validateRepositoryPath(_ path: String) async throws -> URL {
         guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw GitRepositoryError.missingPath
         }
@@ -428,37 +441,86 @@ actor GitRepositoryClient {
 
         let url = URL(fileURLWithPath: expanded, isDirectory: isDirectory.boolValue)
         do {
-            _ = try runGit(["rev-parse", "--show-toplevel"], in: url)
+            _ = try await runGit(["rev-parse", "--show-toplevel"], in: url)
             return url
         } catch {
             throw GitRepositoryError.notARepository(path)
         }
     }
 
-    func repositoryRootURL(for path: String) throws -> URL {
+    func repositoryRootURL(for path: String) async throws -> URL {
         if let cached = rootCache[path] {
             return URL(fileURLWithPath: cached)
         }
-        let repositoryURL = try validateRepositoryPath(path)
-        let rootPath = try runGit(["rev-parse", "--show-toplevel"], in: repositoryURL).trimmingCharacters(in: .whitespacesAndNewlines)
+        let repositoryURL = try await validateRepositoryPath(path)
+        let rootPath = try await runGit(["rev-parse", "--show-toplevel"], in: repositoryURL).trimmingCharacters(in: .whitespacesAndNewlines)
         rootCache[path] = rootPath
         return URL(fileURLWithPath: rootPath)
     }
 
-    func hasHead(in repositoryURL: URL) throws -> Bool {
+    func hasHead(in repositoryURL: URL) async throws -> Bool {
         do {
-            _ = try runGit(["rev-parse", "--verify", "HEAD"], in: repositoryURL)
+            _ = try await runGit(["rev-parse", "--verify", "HEAD"], in: repositoryURL)
             return true
         } catch {
             return false
         }
     }
 
+    /// Cap on retained stdout per git invocation. Generous enough for any diff
+    /// a human will read, small enough that a runaway `git diff` on a binary
+    /// blob can't exhaust memory.
+    static let maxOutputBytes = 32 * 1_048_576
+    /// stderr is diagnostics; a few hundred KB is already more than anyone reads.
+    static let maxErrorBytes = 256 * 1024
+
+    /// A serial queue owning every `git` invocation.
+    ///
+    /// `runGit` blocks for as long as git runs, and `git clone`, `git fetch` or
+    /// a large `git log` are seconds, not milliseconds. Running that
+    /// synchronously on the actor's executor blocks a **cooperative pool**
+    /// thread — a pool sized to the core count and shared by every async task
+    /// in the process, including the host's. Enough concurrent git work and
+    /// unrelated `await`s stop making progress.
+    ///
+    /// Moving the blocking part to a dedicated queue and suspending the actor
+    /// on a continuation frees the cooperative thread for the duration. The
+    /// queue stays serial: git operations on one repo must not interleave, and
+    /// this preserves the ordering the actor already guaranteed.
+    private static let gitQueue = DispatchQueue(label: "com.ainkrad.gitmage.git", qos: .userInitiated)
+
+    /// Runs `git` with `arguments`, suspending rather than blocking.
     func runGit(
         _ arguments: [String],
         in repositoryURL: URL,
         acceptedExitCodes: Set<Int32> = [0],
         environment: [String: String]? = nil
+    ) async throws -> String {
+        // Validate before leaving the actor — a rejected argument must never
+        // reach the spawn path at all.
+        if let rejected = GitArgumentGuard.rejectedArgument(in: arguments) {
+            throw GitRepositoryError.unsafeArgument(rejected)
+        }
+        return try await withCheckedThrowingContinuation { continuation in
+            Self.gitQueue.async {
+                do {
+                    continuation.resume(returning: try Self.runGitBlocking(
+                        arguments, in: repositoryURL,
+                        acceptedExitCodes: acceptedExitCodes, environment: environment))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    /// The blocking spawn. Runs on `gitQueue`, never on the actor's executor.
+    /// `nonisolated static` so it cannot accidentally touch actor state.
+    private nonisolated static func runGitBlocking(
+        _ arguments: [String],
+        in repositoryURL: URL,
+        acceptedExitCodes: Set<Int32>,
+        environment: [String: String]?
     ) throws -> String {
         let process = Process()
         let stdout = Pipe()
@@ -479,20 +541,98 @@ actor GitRepositoryClient {
 
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
             throw GitRepositoryError.commandFailed("Unable to launch git: \(error.localizedDescription)")
         }
 
-        let outData = stdout.fileHandleForReading.readDataToEndOfFile()
-        let errData = stderr.fileHandleForReading.readDataToEndOfFile()
-        let output = String(decoding: outData, as: UTF8.self)
+        // Drain BOTH pipes on background queues BEFORE waiting for exit.
+        //
+        // This ordering is the whole fix. The previous code ran
+        // `waitUntilExit()` and only then read the pipes — so as soon as git
+        // produced more than the ~64KB pipe buffer, the child blocked writing,
+        // the parent blocked waiting for a child that could never exit, and
+        // because `runGit` is synchronous on this actor, the actor itself died
+        // with it. `GitMageRuntime.sharedClient` is that actor, and the agent's
+        // `git_op` tool goes through it, so a single `git show` on a real
+        // commit wedged git support for the whole host until quit.
+        //
+        // (Reproduced directly: the same run/wait/read sequence emitting ~1MB
+        // never returned and had to be SIGKILLed.)
+        let outCollector = PipeDrain(handle: stdout.fileHandleForReading, limit: Self.maxOutputBytes)
+        let errCollector = PipeDrain(handle: stderr.fileHandleForReading, limit: Self.maxErrorBytes)
+        outCollector.start()
+        errCollector.start()
+
+        process.waitUntilExit()
+
+        let (outData, outTruncated) = outCollector.finish()
+        let (errData, _) = errCollector.finish()
+        var output = String(decoding: outData, as: UTF8.self)
         let errorOutput = String(decoding: errData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard acceptedExitCodes.contains(process.terminationStatus) else {
             throw GitRepositoryError.commandFailed(errorOutput.isEmpty ? "git \(arguments.joined(separator: " ")) failed" : errorOutput)
         }
 
+        if outTruncated {
+            // A cap is necessary as well as a drain: `git diff` on a vendored
+            // tree or a binary blob can be hundreds of megabytes, and holding
+            // that as a Swift `String` to render in a pane is its own outage.
+            // Say so in-band rather than silently returning a partial diff that
+            // looks complete.
+            output += "\n… [output truncated at \(Self.maxOutputBytes / 1_048_576) MB]\n"
+        }
         return output
+    }
+}
+
+/// Reads one end of a pipe to EOF on a background queue.
+///
+/// Exists so `runGit` can consume stdout and stderr *concurrently with* the
+/// child process rather than after it — see the comment at the call site.
+/// `limit` bounds how much is retained; bytes past the limit are read and
+/// discarded, which keeps the child unblocked (the deadlock returns the moment
+/// anything stops reading) while bounding memory.
+private final class PipeDrain: @unchecked Sendable {
+    private let handle: FileHandle
+    private let limit: Int
+    private let queue: DispatchQueue
+    private let group = DispatchGroup()
+    private let lock = NSLock()
+    private var data = Data()
+    private var truncated = false
+
+    init(handle: FileHandle, limit: Int) {
+        self.handle = handle
+        self.limit = limit
+        self.queue = DispatchQueue(label: "com.ainkrad.gitmage.pipe-drain")
+    }
+
+    func start() {
+        queue.async(group: group) { [self] in
+            while true {
+                // `availableData` returns empty exactly at EOF, i.e. when the
+                // child's write end closes.
+                let chunk = handle.availableData
+                if chunk.isEmpty { break }
+                lock.lock()
+                if data.count < limit {
+                    let room = limit - data.count
+                    data.append(chunk.count <= room ? chunk : chunk.prefix(room))
+                    if chunk.count > room { truncated = true }
+                } else {
+                    truncated = true   // keep draining, stop retaining
+                }
+                lock.unlock()
+            }
+        }
+    }
+
+    /// Blocks until EOF, then returns what was retained.
+    func finish() -> (Data, Bool) {
+        group.wait()
+        lock.lock()
+        defer { lock.unlock() }
+        return (data, truncated)
     }
 }
