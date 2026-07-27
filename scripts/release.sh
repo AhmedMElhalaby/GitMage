@@ -6,6 +6,13 @@ DESC="A Git workspace inspector for Ainkrad."
 AUTHOR="Ahmed M. Elhalaby"
 LONG_DESC="Git Mage brings a focused Git workspace inspector into Ainkrad: choose a repository folder, inspect branch and status, review file-level changes, and prepare the next commit from a clean HUD-style surface."
 
+# Build CLEAN. An incremental build reuses whatever SwiftPM already resolved
+# into build/SourcePackages — so after an SDK repin it can silently produce a
+# bundle stamped with the PREVIOUS generation, which the host then refuses to
+# load. That happened: a release went out declaring generation 7 against a
+# generation-8 SDK. A release build is not the place to save 90 seconds.
+rm -rf build
+
 xcodegen generate
 xcodebuild -scheme GitMagePlugin -configuration Release -derivedDataPath build -destination 'platform=macOS' build
 BUNDLE="build/Build/Products/Release/GitMagePlugin.bundle"
