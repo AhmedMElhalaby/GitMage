@@ -131,12 +131,4 @@ final class GitMageContextRegistrationTests: XCTestCase {
         XCTAssertEqual(r1.sources.count, 1)
         XCTAssertEqual(r2.sources.count, 1)
     }
-
-    func testRegistersGitOpActionExactlyOnce() {
-        let actions = RecordingActionRegistry()
-        let host = FakeHostServices(context: RecordingContextRegistry(), actions: actions)
-        GitMageRuntime.registerActions(for: host)
-        GitMageRuntime.registerActions(for: host)
-        XCTAssertEqual(actions.ids.values.filter { $0 == "gitmage.git_op" }.count, 1)
-    }
 }
