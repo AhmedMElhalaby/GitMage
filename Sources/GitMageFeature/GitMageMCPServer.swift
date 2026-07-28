@@ -18,12 +18,23 @@ import AinkradAppKit
 /// still be reachable through the ungated tool.
 @MainActor
 enum GitMageMCPServer {
+    /// Which handler a tool's payload is forwarded to.
+    enum Route {
+        /// `GitOpActionHandler` — local git.
+        case git
+        /// `PrOpActionHandler` — the GitHub forge provider.
+        case pullRequest
+    }
+
     /// One published tool.
     struct Tool {
         /// The MCP tool name (snake_case, MCP convention).
         let name: String
-        /// The operation token forwarded to `GitOpActionHandler`.
+        /// The operation token forwarded to the tool's handler.
         let operation: String
+        /// The handler the payload goes to. Both handlers take the identical
+        /// `{operation, repoPath, args}` shape, so only the destination differs.
+        var route: Route = .git
         let summary: String
         /// Surfaced as `destructiveHint`; the host gates irreversible calls on it.
         let destructive: Bool
@@ -59,11 +70,13 @@ enum GitMageMCPServer {
         var injects: (key: String, value: ArgumentValue)?
 
         init(_ name: String, _ operation: String, _ summary: String,
+             route: Route = .git,
              destructive: Bool = false, readOnly: Bool = false, argsHint: String = "None.",
              rejects: (key: String, value: ArgumentValue)? = nil,
              injects: (key: String, value: ArgumentValue)? = nil) {
             self.name = name
             self.operation = operation
+            self.route = route
             self.summary = summary
             self.destructive = destructive
             self.readOnly = readOnly
@@ -101,9 +114,13 @@ enum GitMageMCPServer {
         }
     }
 
-    /// The published set. Operation tokens and destructive flags are copied from
+    /// Everything published: the local-git tools plus the pull-request tools
+    /// (`prTools`, in `GitMageMCPServer+PR.swift`).
+    static var tools: [Tool] { gitTools + prTools }
+
+    /// The local-git set. Operation tokens and destructive flags are copied from
     /// `GitOpTool` in the host (`parametersSchema` and `destructiveOperations`).
-    static let tools: [Tool] = [
+    static let gitTools: [Tool] = [
         Tool("status", "status", "Show the working-tree status of a repository.", readOnly: true),
         Tool("commit", "commit", "Commit the staged changes.", argsHint: "{\"message\": string} (required)"),
         Tool("create_branch", "createBranch", "Create a branch.", argsHint: "{\"name\": string} (required)"),
@@ -150,25 +167,30 @@ enum GitMageMCPServer {
         Tool("abort_operation", "abortOperation", "Abort the in-progress operation.", destructive: true),
     ]
 
-    /// Builds the server. `forward` receives the `{operation, repoPath, args}`
-    /// payload `GitOpActionHandler.run` expects.
+    /// Builds the server. Both closures receive the same
+    /// `{operation, repoPath, args}` payload shape: `forward` is
+    /// `GitOpActionHandler.run` (local git), `forwardPR` is
+    /// `PrOpActionHandler.run` (the GitHub forge provider). A tool's `route`
+    /// decides which one it reaches — nothing else differs between the paths.
     ///
     /// Returns the names of any tools `addTool` refused alongside the server: a
     /// dropped tool is a silently missing capability, so the caller must not be
     /// able to ignore it by accident.
     static func make(appID: String,
-                     forward: @escaping @MainActor @Sendable (String) async -> AgentActionResult)
+                     forward: @escaping @MainActor @Sendable (String) async -> AgentActionResult,
+                     forwardPR: @escaping @MainActor @Sendable (String) async -> AgentActionResult)
         -> (server: MCPAppServer, failures: [String]) {
         let server = MCPAppServer(appID: appID)
         var failures: [String] = []
         for tool in tools {
+            let sink = tool.route == .pullRequest ? forwardPR : forward
             let added = server.addTool(MCPToolSpec(
                 name: tool.name,
                 description: tool.summary,
                 schemaJSON: schemaJSON(for: tool),
                 destructive: tool.destructive,
                 readOnly: tool.readOnly,
-                handler: { arguments in await invoke(tool, arguments: arguments, forward: forward) }
+                handler: { arguments in await invoke(tool, arguments: arguments, forward: sink) }
             ))
             if !added { failures.append(tool.name) }
         }

@@ -110,8 +110,16 @@ struct GitMageMCPServerTests {
         "removeWorktree", "opState", "continueOp", "abortOperation",
     ]
 
+    /// Only the git half is under test here; the PR half has its own suite
+    /// (`GitMagePROpTests`), so its forwarder is a tripwire — if a git tool ever
+    /// routed to it, the assertion in `callForwardsOperationAndArguments` and
+    /// friends would see no payload at all.
     private func makeServer(_ recorder: RecordingForwarder) -> (MCPAppServer, [String]) {
-        GitMageMCPServer.make(appID: "gitmage") { await recorder.forward($0) }
+        GitMageMCPServer.make(
+            appID: "gitmage",
+            forward: { await recorder.forward($0) },
+            forwardPR: { _ in AgentActionResult(text: "pr", isError: false) }
+        )
     }
 
     @Test func everyToolRegistersSuccessfully() async {
@@ -121,7 +129,7 @@ struct GitMageMCPServerTests {
 
     @Test func publishesEveryHostOperation() async {
         let (server, _) = makeServer(RecordingForwarder())
-        let published = Set(GitMageMCPServer.tools.map(\.operation))
+        let published = Set(GitMageMCPServer.gitTools.map(\.operation))
         for operation in Self.hostOperations {
             #expect(published.contains(operation), "missing operation \(operation)")
         }
@@ -133,7 +141,7 @@ struct GitMageMCPServerTests {
     @Test func destructiveHintsMatchTheHostSet() async {
         let (server, _) = makeServer(RecordingForwarder())
         let listed = await listedTools(server)
-        for tool in GitMageMCPServer.tools {
+        for tool in GitMageMCPServer.gitTools {
             guard let entry = listed.first(where: { $0["name"] as? String == tool.name }) else {
                 Issue.record("tool \(tool.name) was not listed"); continue
             }

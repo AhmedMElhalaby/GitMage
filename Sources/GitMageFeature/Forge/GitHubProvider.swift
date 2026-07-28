@@ -45,6 +45,16 @@ final class GitHubProvider: GitForgeProvider {
     func merge(_ repo: RepoRef, number: Int, method: MergeMethod) async throws {
         try await send("PUT", "/repos/\(repo.owner)/\(repo.name)/pulls/\(number)/merge", json: ["merge_method": method.rawValue])
     }
+    func createPullRequest(_ repo: RepoRef, title: String, body: String,
+                           head: String, base: String, draft: Bool) async throws -> Int {
+        let created: GHPull = try await sendReturning("POST", "/repos/\(repo.owner)/\(repo.name)/pulls",
+            json: ["title": title, "body": body, "head": head, "base": base, "draft": draft])
+        return created.number
+    }
+    func setPullRequestState(_ repo: RepoRef, number: Int, state: PRState) async throws {
+        try await send("PATCH", "/repos/\(repo.owner)/\(repo.name)/pulls/\(number)",
+                       json: ["state": state.rawValue])
+    }
 
     // MARK: - Issues
     func listIssues(_ repo: RepoRef, state: IssueState) async throws -> [IssueSummary] {

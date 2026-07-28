@@ -80,15 +80,20 @@ enum GitMageRuntime {
     private static let mcpServers = PluginInstanceStorage<MCPAppServer>()
 
     /// The per-host MCP server, created once and cached (mirrors
-    /// `contextBridge`). Its tools forward to the same `GitOpActionHandler` and
-    /// the same shared `GitRepositoryClient` the `gitmage.git_op` action uses,
-    /// so both front doors behave identically while they coexist.
+    /// `contextBridge`). Its git tools forward to the same `GitOpActionHandler`
+    /// and the same shared `GitRepositoryClient` the `gitmage.git_op` action
+    /// uses, so both front doors behave identically while they coexist; its PR
+    /// tools forward to `PrOpActionHandler`, which drives the same
+    /// `GitHubProvider` and the same token the Pull Requests UI uses.
     static func mcpServer(for host: HostServices) -> MCPAppServer {
         mcpServers.value(for: instance(of: host)) {
             let handler = GitOpActionHandler(client: sharedClient)
-            let (server, failures) = GitMageMCPServer.make(appID: GitMageApp.id) { json in
-                await handler.run(json)
-            }
+            let prHandler = PrOpActionHandler(client: sharedClient, secrets: host.secrets)
+            let (server, failures) = GitMageMCPServer.make(
+                appID: GitMageApp.id,
+                forward: { json in await handler.run(json) },
+                forwardPR: { json in await prHandler.run(json) }
+            )
             // A dropped tool is a silently missing capability — say so rather
             // than let the assistant just never see it.
             if !failures.isEmpty {

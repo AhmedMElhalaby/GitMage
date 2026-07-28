@@ -38,6 +38,11 @@ protocol GitForgeProvider {
     func addComment(_ repo: RepoRef, number: Int, body: String) async throws
     func submitReview(_ repo: RepoRef, number: Int, event: ReviewEvent, body: String) async throws
     func merge(_ repo: RepoRef, number: Int, method: MergeMethod) async throws
+    /// Opens a pull request and returns its number.
+    func createPullRequest(_ repo: RepoRef, title: String, body: String,
+                           head: String, base: String, draft: Bool) async throws -> Int
+    /// Reopens or closes an existing pull request. `.all` is not a settable state.
+    func setPullRequestState(_ repo: RepoRef, number: Int, state: PRState) async throws
 
     func listIssues(_ repo: RepoRef, state: IssueState) async throws -> [IssueSummary]
     /// Paginated issue search (text + labels) via the forge search API.
