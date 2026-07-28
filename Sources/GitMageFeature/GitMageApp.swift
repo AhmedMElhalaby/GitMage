@@ -30,6 +30,14 @@ public struct GitMageApp: AinkradApp {
     }
 }
 
+/// Publishes Git Mage's git operations to the host assistant as MCP tools.
+/// Cached per host by the runtime, so the assistant and the UI share one client.
+extension GitMageApp: AinkradAppMCP {
+    public static func makeMCPServer(host: HostServices) -> MCPAppServer {
+        GitMageRuntime.mcpServer(for: host)
+    }
+}
+
 /// Generation 8: release this instance when the host closes it.
 ///
 /// `GitMageRuntime` held three static, never-evicted registries — settings

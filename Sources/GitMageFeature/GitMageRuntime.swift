@@ -77,6 +77,27 @@ enum GitMageRuntime {
         }
     }
 
+    private static let mcpServers = PluginInstanceStorage<MCPAppServer>()
+
+    /// The per-host MCP server, created once and cached (mirrors
+    /// `contextBridge`). Its tools forward to the same `GitOpActionHandler` and
+    /// the same shared `GitRepositoryClient` the `gitmage.git_op` action uses,
+    /// so both front doors behave identically while they coexist.
+    static func mcpServer(for host: HostServices) -> MCPAppServer {
+        mcpServers.value(for: instance(of: host)) {
+            let handler = GitOpActionHandler(client: sharedClient)
+            let (server, failures) = GitMageMCPServer.make(appID: GitMageApp.id) { json in
+                await handler.run(json)
+            }
+            // A dropped tool is a silently missing capability — say so rather
+            // than let the assistant just never see it.
+            if !failures.isEmpty {
+                host.log.error("Git Mage MCP: tools rejected — \(failures.joined(separator: ", "))")
+            }
+            return server
+        }
+    }
+
     /// Releases everything scoped to `instance` and unregisters it from the
     /// host. The three registries above were `static` and never evicted, so a
     /// closed Git Mage left its settings store, its context source and its
@@ -84,6 +105,7 @@ enum GitMageRuntime {
     static func teardown(instance: PluginInstanceID, host: HostServices?) {
         stores.remove(instance)
         bridges.remove(instance)
+        mcpServers.remove(instance)
         if let token = contextTokens.remove(instance) { host?.context.remove(token) }
         if let token = actionTokens.remove(instance) { host?.actions.remove(token) }
     }
