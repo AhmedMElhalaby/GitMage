@@ -78,14 +78,14 @@ extension GitMageMCPServer {
              argsHint: "{\"number\": number (required), "
              + "\"event\": \"requestChanges\"|\"comment\" (required), \"body\": string}. "
              + "\"approve\" is refused here — call pr_approve to approve a pull request.",
-             rejects: (key: "event", value: .approvingReviewEvent)),
+             rejects: [GuardRule("event", .approvingReviewEvent)]),
         Tool("pr_approve", "reviewPR",
              "Approve a pull request. On a repository with auto-merge enabled this can "
              + "merge it immediately, which cannot be undone.",
              route: .pullRequest, destructive: true,
              argsHint: "{\"number\": number (required), \"body\": string} — "
              + "event is always \"approve\".",
-             injects: (key: "event", value: .approvingReviewEvent)),
+             injects: [GuardRule("event", .approvingReviewEvent)]),
         Tool("pr_merge", "mergePR", "Merge a pull request. This rewrites the base branch.",
              route: .pullRequest, destructive: true,
              argsHint: "{\"number\": number (required), "

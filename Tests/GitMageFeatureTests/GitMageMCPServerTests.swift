@@ -162,38 +162,52 @@ struct GitMageMCPServerTests {
     /// irreversible tool — this fails instead.
     @Test func everyInjectingToolIsDestructive() {
         for tool in GitMageMCPServer.tools {
-            guard let rule = tool.injects else { continue }
-            let reason = "\(tool.name) injects args.\(rule.key) = \(rule.value.described) "
-                + "but is not destructive: true — it would be ungated"
-            #expect(tool.destructive, Comment(rawValue: reason))
+            for rule in tool.injects {
+                let reason = "\(tool.name) injects args.\(rule.key) = \(rule.value.described) "
+                    + "but is not destructive: true — it would be ungated"
+                #expect(tool.destructive, Comment(rawValue: reason))
+            }
         }
     }
 
-    /// Invariant 2, also table-driven: a refused argument must remain reachable
-    /// through a published twin that injects it. Without the twin the safe half
-    /// refuses a capability nothing else can supply — the pattern would silently
-    /// delete functionality instead of gating it. The twin is matched
-    /// structurally (same operation, same key, and its injected value is one the
-    /// rejecting rule would actually catch), so a future pair is covered without
-    /// being named here.
+    /// Invariant 2, also table-driven: every key a tool refuses must remain
+    /// reachable through SOME published twin for the same operation that
+    /// injects it. Without that, the safe half refuses a capability nothing
+    /// else can supply — the pattern would silently delete functionality
+    /// instead of gating it.
+    ///
+    /// With `rejects`/`injects` as arrays, a multi-rule tool's keys do NOT need
+    /// one single twin that injects all of them together — a caller who needs
+    /// two dangerous arguments at once is already asking for the fully
+    /// dangerous operation, which is exactly what "some twin injects this key"
+    /// captures per key. Requiring one twin to cover the whole set would fail
+    /// on a perfectly reasonable design where two independent dangerous
+    /// arguments each get their own dedicated destructive tool. So the check is
+    /// per rejected key: for every `(operation, key, value)` a safe tool
+    /// refuses, some published tool on that same operation injects a value the
+    /// rejecting rule would catch. The twin is matched structurally (operation,
+    /// key, and value), so a future pair is covered without being named here.
     @Test func everyRejectedArgumentHasAPublishedInjectingTwin() async {
         let (server, _) = makeServer(RecordingForwarder())
         let listed = Set(await listedTools(server).compactMap { $0["name"] as? String })
         for tool in GitMageMCPServer.tools {
-            guard let rule = tool.rejects else { continue }
-            let twin = GitMageMCPServer.tools.first { candidate in
-                guard candidate.name != tool.name, candidate.operation == tool.operation,
-                      let injected = candidate.injects, injected.key == rule.key else { return false }
-                return rule.value.matches(injected.value.foundation)
+            for rule in tool.rejects {
+                let twin = GitMageMCPServer.tools.first { candidate in
+                    guard candidate.name != tool.name, candidate.operation == tool.operation else { return false }
+                    return candidate.injects.contains { injected in
+                        injected.key == rule.key && rule.value.matches(injected.value.foundation)
+                    }
+                }
+                guard let twin else {
+                    let reason = "\(tool.name) refuses args.\(rule.key) = \(rule.value.described) "
+                        + "but no tool injects it — the capability is gone, not gated"
+                    Issue.record(Comment(rawValue: reason))
+                    continue
+                }
+                #expect(listed.contains(twin.name),
+                        Comment(rawValue: "\(twin.name) is the twin for \(tool.name)'s "
+                                + "args.\(rule.key) but was not published"))
             }
-            guard let twin else {
-                let reason = "\(tool.name) refuses args.\(rule.key) = \(rule.value.described) "
-                    + "but no tool injects it — the capability is gone, not gated"
-                Issue.record(Comment(rawValue: reason))
-                continue
-            }
-            #expect(listed.contains(twin.name),
-                    Comment(rawValue: "\(twin.name) is the twin for \(tool.name) but was not published"))
         }
     }
 
@@ -387,6 +401,73 @@ struct GitMageMCPServerTests {
     @Test func appPublishesTheRuntimeServer() async {
         let host = FakeHostServices(context: RecordingContextRegistry())
         #expect(GitMageApp.makeMCPServer(host: host) === GitMageRuntime.mcpServer(for: host))
+    }
+
+    // MARK: - multi-guard capability (array shape)
+    //
+    // No real git operation needs two guarded arguments today, so this drives
+    // a test-only fixture pair through the REAL gate/inject logic in
+    // `GitMageMCPServer.invoke` rather than inventing a fabricated git
+    // operation. It proves the array shape actually supports what a single
+    // optional could not: a tool refusing on ANY of several rules, and its
+    // twin injecting ALL of them.
+
+    /// A hypothetical safe tool that must refuse `mode: "hard"` OR
+    /// `force: true`, individually or together.
+    private static let fixtureSafe = GitMageMCPServer.Tool(
+        "fixture_multi_safe", "fixtureMulti", "test-only two-guard fixture",
+        argsHint: "None.",
+        rejects: [GitMageMCPServer.GuardRule("mode", .string("hard")),
+                  GitMageMCPServer.GuardRule("force", .bool(true))])
+
+    /// Its destructive twin, which must inject BOTH values.
+    private static let fixtureDestructive = GitMageMCPServer.Tool(
+        "fixture_multi_destructive", "fixtureMulti", "test-only two-guard fixture twin",
+        destructive: true, argsHint: "None.",
+        injects: [GitMageMCPServer.GuardRule("mode", .string("hard")),
+                  GitMageMCPServer.GuardRule("force", .bool(true))])
+
+    private func invokeFixture(_ tool: GitMageMCPServer.Tool, args: [String: Any],
+                               recorder: RecordingForwarder) async -> (text: String, isError: Bool) {
+        let payload: [String: Any] = ["repoPath": "/r", "args": args]
+        let data = try! JSONSerialization.data(withJSONObject: payload)
+        let result = await GitMageMCPServer.invoke(tool, arguments: String(decoding: data, as: UTF8.self),
+                                                   forward: { await recorder.forward($0) })
+        return (result.text, result.isError)
+    }
+
+    @Test func fixtureSafeToolRefusesEitherGuardedArgumentAlone() async {
+        let recorder = RecordingForwarder()
+        let byMode = await invokeFixture(Self.fixtureSafe, args: ["mode": "hard"], recorder: recorder)
+        #expect(byMode.isError)
+        #expect(recorder.payloads.isEmpty, "mode: hard alone must be refused, not forwarded")
+
+        let byForce = await invokeFixture(Self.fixtureSafe, args: ["force": true], recorder: recorder)
+        #expect(byForce.isError)
+        #expect(recorder.payloads.isEmpty, "force: true alone must be refused, not forwarded")
+    }
+
+    @Test func fixtureSafeToolRefusesBothGuardedArgumentsTogether() async {
+        let recorder = RecordingForwarder()
+        let outcome = await invokeFixture(Self.fixtureSafe, args: ["mode": "hard", "force": true],
+                                          recorder: recorder)
+        #expect(outcome.isError)
+        #expect(recorder.payloads.isEmpty, "mode: hard + force: true together must be refused")
+    }
+
+    @Test func fixtureSafeToolAllowsNeitherGuardedArgument() async {
+        let recorder = RecordingForwarder()
+        let outcome = await invokeFixture(Self.fixtureSafe, args: ["mode": "soft"], recorder: recorder)
+        #expect(outcome.isError == false)
+        #expect(recorder.lastObject != nil)
+    }
+
+    @Test func fixtureDestructiveTwinInjectsBothGuardedArguments() async {
+        let recorder = RecordingForwarder()
+        _ = await invokeFixture(Self.fixtureDestructive, args: [:], recorder: recorder)
+        let args = recorder.lastObject?["args"] as? [String: Any]
+        #expect(args?["mode"] as? String == "hard")
+        #expect(args?["force"] as? Bool == true)
     }
 
     @Test func missingRepoPathIsAnErrorNotAForwardedCall() async {

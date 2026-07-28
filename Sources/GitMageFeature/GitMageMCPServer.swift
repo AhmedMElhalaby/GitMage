@@ -42,48 +42,59 @@ enum GitMageMCPServer {
         let readOnly: Bool
         /// Describes the tool's `args` object in its schema.
         let argsHint: String
-        /// An `args` key this tool must refuse — the caller has to use the
+        /// `args` keys this tool must refuse — the caller has to use the
         /// destructive twin instead. Refusing `("mode", .string("hard"))` means
         /// `mode: hard` never reaches git through the ungated tool.
         ///
-        /// **This is an EXACT match, and that is safe only because it uses the
-        /// same coercion as the sink.** `GitOpActionHandler.run` reads the two
-        /// guarded arguments as `ResetMode(rawValue: (args["mode"] as? String)
-        /// ?? "mixed")` and `(args["force"] as? Bool) ?? false`. `ResetMode` is
-        /// a lower-case `String` raw-value enum with an exact `init(rawValue:)`,
-        /// so `"Hard"`, `" hard"` and a non-string `mode` all fail at the SINK
-        /// rather than slipping past this guard into git; `1` bridges to
-        /// `NSNumber`, which `as? Bool` accepts at BOTH ends, so the guard
-        /// catches it.
+        /// **An ARRAY, not a single rule, because a single operation can need
+        /// more than one guarded argument.** The call is refused if **ANY**
+        /// listed rule matches — that is the safe direction: adding a rule only
+        /// ever narrows what the ungated tool accepts, never widens it. Today's
+        /// three pairs each need exactly one rule, so this reads identically to
+        /// the old optional for them; `GitMageMCPServerTests` proves a
+        /// two-rule tool works with a test-only fixture.
         ///
-        /// If the handler is ever made more tolerant — `rawValue:
+        /// **Each rule is an EXACT match, and that is safe only because it uses
+        /// the same coercion as its sink.** `GitOpActionHandler.run` reads the
+        /// two guarded arguments as `ResetMode(rawValue: (args["mode"] as?
+        /// String) ?? "mixed")` and `(args["force"] as? Bool) ?? false`.
+        /// `ResetMode` is a lower-case `String` raw-value enum with an exact
+        /// `init(rawValue:)`, so `"Hard"`, `" hard"` and a non-string `mode` all
+        /// fail at the SINK rather than slipping past this guard into git; `1`
+        /// bridges to `NSNumber`, which `as? Bool` accepts at BOTH ends, so the
+        /// guard catches it.
+        ///
+        /// If a handler is ever made more tolerant — `rawValue:
         /// mode.lowercased()`, a trimming step, an alias table, a string-to-bool
-        /// coercion for `force` — this guard MUST be widened in lockstep, or the
-        /// ungated tool becomes a live hard reset / forced removal with no
-        /// approval gate. In `GitMageMCPServerTests`,
-        /// `theResetSinkIsCaseSensitiveWhichIsWhatMakesTheGuardSufficient` fails
-        /// first if that coupling breaks, and the
-        /// `resetNeverPerformsAHardResetHoweverModeIsSpelled` /
-        /// `removeWorktreeNeverForcesHoweverForceIsSpelled` tables cover the
+        /// coercion for `force` — the matching rule MUST be widened in lockstep,
+        /// or the ungated tool becomes a live hard reset / forced removal with
+        /// no approval gate. In `GitMageMCPServerTests`,
+        /// `theResetSinkRejectsEveryNonExactSpellingOfHard` fails first if that
+        /// coupling breaks, and the `resetNeverPerformsAHardResetHoweverModeIsSpelled`
+        /// / `removeWorktreeNeverForcesHoweverForceIsSpelled` tables cover the
         /// individual spellings.
-        var rejects: (key: String, value: ArgumentValue)?
-        /// An `args` key this tool sets itself, ignoring whatever was passed.
+        var rejects: [GuardRule] = []
+        /// `args` keys this tool sets itself, ignoring whatever was passed.
+        /// **ALL** listed values are injected — the destructive twin owns every
+        /// argument its safe counterpart refuses.
         ///
         /// Two invariants hold across the whole table and are checked
         /// structurally (not by name) in `GitMageMCPServerTests`, so a future
         /// pair is covered without touching the tests:
         /// `everyInjectingToolIsDestructive` — anything that injects must be
         /// `destructive: true`, or it is an ungated irreversible tool; and
-        /// `everyRejectedArgumentHasAPublishedInjectingTwin` — every `rejects`
-        /// key must be reachable through a published twin, or the safe half
-        /// deletes a capability instead of gating it.
-        var injects: (key: String, value: ArgumentValue)?
+        /// `everyRejectedArgumentHasAPublishedInjectingTwin` — every key a tool
+        /// rejects must be injected by SOME twin for the same operation (not
+        /// necessarily a single twin covering every rejected key — see that
+        /// test's doc comment), or the safe half deletes a capability instead
+        /// of gating it.
+        var injects: [GuardRule] = []
 
         init(_ name: String, _ operation: String, _ summary: String,
              route: Route = .git,
              destructive: Bool = false, readOnly: Bool = false, argsHint: String = "None.",
-             rejects: (key: String, value: ArgumentValue)? = nil,
-             injects: (key: String, value: ArgumentValue)? = nil) {
+             rejects: [GuardRule] = [],
+             injects: [GuardRule] = []) {
             self.name = name
             self.operation = operation
             self.route = route
@@ -93,6 +104,19 @@ enum GitMageMCPServer {
             self.argsHint = argsHint
             self.rejects = rejects
             self.injects = injects
+        }
+    }
+
+    /// One guarded `args` key/value pair. A named struct (rather than a bare
+    /// tuple) because `rejects`/`injects` are now arrays of these, and tuple
+    /// arrays read poorly at call sites (`[(key: "a", value: ...), (key: "b",
+    /// value: ...)]` vs `[GuardRule("a", ...), GuardRule("b", ...)]`).
+    struct GuardRule {
+        let key: String
+        let value: ArgumentValue
+        init(_ key: String, _ value: ArgumentValue) {
+            self.key = key
+            self.value = value
         }
     }
 
@@ -173,11 +197,11 @@ enum GitMageMCPServer {
         Tool("reset", "reset", "Reset to a ref with a non-destructive mode (soft or mixed). "
              + "Use reset_hard for a hard reset — it discards working-tree changes.",
              argsHint: "{\"ref\": string (required), \"mode\": \"soft\"|\"mixed\", \"autostash\": bool}",
-             rejects: (key: "mode", value: .string("hard"))),
+             rejects: [GuardRule("mode", .string("hard"))]),
         Tool("reset_hard", "reset", "Hard-reset to a ref, DISCARDING all working-tree changes.",
              destructive: true,
              argsHint: "{\"ref\": string (required), \"autostash\": bool} — mode is always \"hard\".",
-             injects: (key: "mode", value: .string("hard"))),
+             injects: [GuardRule("mode", .string("hard"))]),
         Tool("create_tag", "createTag", "Create a tag.",
              argsHint: "{\"name\": string (required), \"message\": string, \"ref\": string}"),
         Tool("delete_tag", "deleteTag", "Delete a tag.", destructive: true,
@@ -187,11 +211,11 @@ enum GitMageMCPServer {
              + "Use remove_worktree_force to remove one with uncommitted changes.",
              argsHint: "{\"path\": string} (required). \"force\" is refused here — "
              + "call remove_worktree_force to remove a worktree with uncommitted changes.",
-             rejects: (key: "force", value: .bool(true))),
+             rejects: [GuardRule("force", .bool(true))]),
         Tool("remove_worktree_force", "removeWorktree",
              "Force-remove a worktree, DISCARDING any uncommitted changes in it.",
              destructive: true, argsHint: "{\"path\": string} (required) — force is always true.",
-             injects: (key: "force", value: .bool(true))),
+             injects: [GuardRule("force", .bool(true))]),
         Tool("op_state", "opState", "Report any in-progress merge/rebase/cherry-pick.", readOnly: true),
         Tool("continue_op", "continueOp", "Continue the in-progress operation."),
         Tool("abort_operation", "abortOperation", "Abort the in-progress operation.", destructive: true),
@@ -229,8 +253,12 @@ enum GitMageMCPServer {
 
     // MARK: - call handling
 
-    private static func invoke(_ tool: Tool, arguments: String,
-                               forward: @MainActor @Sendable (String) async -> AgentActionResult)
+    /// Internal rather than `private` so `GitMageMCPServerTests` can drive a
+    /// test-only two-guard `Tool` fixture directly through the real gate/inject
+    /// logic, without publishing a fabricated tool through the live server (the
+    /// static `tools` table is not something a test should be able to bend).
+    static func invoke(_ tool: Tool, arguments: String,
+                        forward: @MainActor @Sendable (String) async -> AgentActionResult)
         async -> AgentActionResult {
         guard let data = arguments.data(using: .utf8),
               let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
@@ -242,14 +270,18 @@ enum GitMageMCPServer {
         var args = object["args"] as? [String: Any] ?? [:]
 
         // The gate: a caller must not reach the irreversible behaviour through
-        // the tool the host does not treat as destructive.
-        if let rule = tool.rejects, let passed = args[rule.key], rule.value.matches(passed) {
+        // the tool the host does not treat as destructive. ANY matching rule
+        // refuses the call — more rules only ever narrow what gets through.
+        for rule in tool.rejects {
+            guard let passed = args[rule.key], rule.value.matches(passed) else { continue }
             return AgentActionResult(
                 text: "\(tool.name) refuses args.\(rule.key) = \(rule.value.described) — "
                     + "it is irreversible and needs approval. Use the dedicated tool instead.",
                 isError: true)
         }
-        if let rule = tool.injects { args[rule.key] = rule.value.foundation }
+        // ALL injected values are applied — the destructive twin owns every
+        // argument its safe counterpart refuses.
+        for rule in tool.injects { args[rule.key] = rule.value.foundation }
 
         var payload: [String: Any] = ["operation": tool.operation, "repoPath": repoPath]
         if !args.isEmpty { payload["args"] = args }
