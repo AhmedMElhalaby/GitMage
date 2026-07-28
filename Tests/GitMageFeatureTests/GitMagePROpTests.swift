@@ -128,6 +128,44 @@ private func readOnlyHint(_ tool: [String: Any]) -> Bool {
     (tool["annotations"] as? [String: Any])?["readOnlyHint"] as? Bool ?? false
 }
 
+// MARK: - evasion cases
+//
+// File-scope (not nested in the suite) because `@Test(arguments:)` reads the
+// table from outside the actor, and the suite is `@MainActor`.
+
+/// One spelling of an approving review event. Built by a closure so the table
+/// can hold heterogeneous JSON values and still be `Sendable`.
+struct PREvasion: Sendable, CustomStringConvertible {
+    let label: String
+    let value: @Sendable () -> Any
+    init(_ label: String, _ value: @escaping @Sendable () -> Any) {
+        self.label = label
+        self.value = value
+    }
+    var description: String { label }
+}
+
+/// Spellings a caller could try in place of the plain `event: "approve"` that
+/// `pr_review`'s guard rejects.
+///
+/// Unlike `reset`'s `mode`, the sink here is LOOSE — `PrOpActionHandler`
+/// lowercases and aliases `"approved"` — so the casing variants are NOT saved
+/// by a strict sink the way `"Hard"` is. They have to be caught by the guard
+/// itself, which is why it resolves through the sink's own parser.
+let approveEvasions: [PREvasion] = [
+    PREvasion("plain") { "approve" },
+    PREvasion("capitalised") { "Approve" },
+    PREvasion("upper-cased") { "APPROVE" },
+    PREvasion("mixed case") { "aPpRoVe" },
+    PREvasion("the past-tense alias") { "approved" },
+    PREvasion("the capitalised alias") { "Approved" },
+    PREvasion("the GitHub wire value") { "APPROVED" },
+    PREvasion("leading space") { " approve" },
+    PREvasion("trailing space") { "approve " },
+    PREvasion("array wrapping the string") { ["approve"] },
+    PREvasion("object wrapping the string") { ["event": "approve"] },
+]
+
 // MARK: - tests
 
 @MainActor
@@ -167,7 +205,7 @@ struct GitMagePROpTests {
 
         let listed = Set(await listedTools(server).compactMap { $0["name"] as? String })
         let expected: Set<String> = ["pr_list", "pr_view", "pr_checks", "pr_create",
-                                     "pr_comment", "pr_review", "pr_merge", "pr_close"]
+                                     "pr_comment", "pr_review", "pr_approve", "pr_merge", "pr_close"]
         #expect(expected.isSubset(of: listed), "missing: \(expected.subtracting(listed))")
         // The git tools are still published alongside them.
         #expect(listed.contains("status"))
@@ -177,12 +215,14 @@ struct GitMagePROpTests {
     @Test func destructiveHintsMatchTheClassification() async {
         let (server, _) = makeServer(StubForgeProvider())
         let listed = await listedTools(server)
-        // Only merging and closing destroy or foreclose state that cannot be
-        // restored through the API. Creating a PR, commenting and reviewing are
-        // additive and remediable, so they stay ungated.
+        // Merging and closing destroy or foreclose state that cannot be restored
+        // through the API, and approving can auto-merge. Creating a PR,
+        // commenting, and non-approving reviews are additive and remediable, so
+        // they stay ungated.
         let expected: [String: Bool] = [
             "pr_list": false, "pr_view": false, "pr_checks": false, "pr_create": false,
-            "pr_comment": false, "pr_review": false, "pr_merge": true, "pr_close": true,
+            "pr_comment": false, "pr_review": false, "pr_approve": true,
+            "pr_merge": true, "pr_close": true,
         ]
         for (name, flag) in expected {
             guard let entry = listed.first(where: { $0["name"] as? String == name }) else {
@@ -297,10 +337,99 @@ struct GitMagePROpTests {
         let provider = StubForgeProvider()
         let (server, _) = makeServer(provider)
         _ = await call(server, "pr_review",
-                       arguments: ["repoPath": "/r", "args": ["number": 7, "event": "approve", "body": "LGTM"]])
+                       arguments: ["repoPath": "/r",
+                                   "args": ["number": 7, "event": "requestChanges", "body": "needs work"]])
+        #expect(provider.submitReviewCalls.count == 1)
+        #expect(provider.submitReviewCalls.first?.number == 7)
+        #expect(provider.submitReviewCalls.first?.event == .requestChanges)
+        #expect(provider.submitReviewCalls.first?.body == "needs work")
+    }
+
+    // MARK: - evasion of pr_review's approval guard
+    //
+    // The property under test is NOT "the call returned an error" — an error
+    // string would still read as a pass if the approval leaked past it. It is:
+    // **an approving review never reaches GitHub through the ungated tool**. So
+    // every case asserts on what the PROVIDER actually received.
+
+    /// Whether an approval reached the forge. `submitReview` is the only call
+    /// that can create one, so an empty list is proof nothing was approved.
+    private func approved(_ provider: StubForgeProvider) -> Bool {
+        provider.submitReviewCalls.contains { $0.event == .approve }
+    }
+
+    @Test(arguments: approveEvasions)
+    func prReviewNeverApprovesHoweverTheEventIsSpelled(evasion: PREvasion) async {
+        let provider = StubForgeProvider()
+        let (server, _) = makeServer(provider)
+        _ = await call(server, "pr_review",
+                       arguments: ["repoPath": "/r", "args": ["number": 7, "event": evasion.value()]])
+        #expect(approved(provider) == false,
+                "pr_review reached an approval via \(evasion.label)")
+    }
+
+    @Test func prReviewIgnoresANestedOrDifferentlyCasedEventKey() async {
+        let provider = StubForgeProvider()
+        let (server, _) = makeServer(provider)
+
+        // A nested `args.args.event` — neither the guard nor the sink reads it.
+        _ = await call(server, "pr_review",
+                       arguments: ["repoPath": "/r", "args": ["number": 7, "args": ["event": "approve"]]])
+        #expect(approved(provider) == false, "a nested args.event reached the sink")
+
+        // An `"Event"` key: missed by the guard, and equally missed by the sink,
+        // which reads `args["event"]` exactly.
+        _ = await call(server, "pr_review",
+                       arguments: ["repoPath": "/r", "args": ["number": 7, "Event": "approve"]])
+        #expect(approved(provider) == false, "a differently-cased Event key reached the sink")
+    }
+
+    @Test func prReviewStillAllowsTheNonApprovingEvents() async {
+        let provider = StubForgeProvider()
+        let (server, _) = makeServer(provider)
+        for (raw, expected) in [("comment", ReviewEvent.comment), ("requestChanges", .requestChanges)] {
+            let outcome = await call(server, "pr_review",
+                                     arguments: ["repoPath": "/r", "args": ["number": 7, "event": raw]])
+            #expect(outcome.isError == false, "pr_review refused \(raw)")
+            #expect(provider.submitReviewCalls.last?.event == expected)
+        }
+    }
+
+    @Test func prApproveIsPublishedDestructiveAndInjectsTheApproval() async {
+        let provider = StubForgeProvider()
+        let (server, _) = makeServer(provider)
+
+        guard let entry = await listedTools(server).first(where: { $0["name"] as? String == "pr_approve" }) else {
+            Issue.record("pr_approve was not published"); return
+        }
+        #expect(destructiveHint(entry))
+
+        // No `event` passed at all — the tool supplies it.
+        let outcome = await call(server, "pr_approve",
+                                 arguments: ["repoPath": "/r", "args": ["number": 7, "body": "LGTM"]])
+        #expect(outcome.isError == false)
         #expect(provider.submitReviewCalls.count == 1)
         #expect(provider.submitReviewCalls.first?.event == .approve)
+        #expect(provider.submitReviewCalls.first?.number == 7)
         #expect(provider.submitReviewCalls.first?.body == "LGTM")
+    }
+
+    /// Pins the coupling the `pr_review` guard depends on: it resolves through
+    /// `PrOpActionHandler.reviewEvent`, the SAME function the handler uses, so
+    /// adding a spelling there cannot open a hole here. This drives the real
+    /// parser rather than a mirror of it.
+    @Test func theGuardAndTheSinkShareOneApprovalParser() async {
+        for spelling in ["approve", "Approve", "APPROVE", "approved", "APPROVED"] {
+            #expect(PrOpActionHandler.reviewEvent(spelling) == .approve,
+                    "the sink no longer reads \"\(spelling)\" as an approval")
+            #expect(GitMageMCPServer.ArgumentValue.approvingReviewEvent.matches(spelling),
+                    "the guard misses \"\(spelling)\" that the sink accepts as an approval")
+        }
+        // A non-approving event must NOT be caught, or pr_review is unusable.
+        for spelling in ["comment", "requestChanges", "request_changes"] {
+            #expect(GitMageMCPServer.ArgumentValue.approvingReviewEvent.matches(spelling) == false,
+                    "the guard over-rejects \"\(spelling)\"")
+        }
     }
 
     @Test func prReviewRejectsAnUnknownEvent() async {

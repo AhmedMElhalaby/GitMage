@@ -86,16 +86,34 @@ enum GitMageMCPServer {
         }
     }
 
-    /// The only argument shapes the reject/inject rules need.
+    /// The argument shapes the reject/inject rules need.
+    ///
+    /// `.string`/`.bool` are EXACT matches, which is safe only because their
+    /// sinks are exact too (see the long note on `Tool.rejects`).
+    /// `.approvingReviewEvent` is the deliberate exception: its sink is
+    /// case-insensitive and carries an alias, so an exact match would be a hole.
     enum ArgumentValue {
         case string(String)
         case bool(Bool)
+        /// Any spelling of `event` that `PrOpActionHandler` would resolve to
+        /// `ReviewEvent.approve`.
+        case approvingReviewEvent
 
         /// Whether a value decoded from the call's arguments equals this one.
         func matches(_ any: Any) -> Bool {
             switch self {
             case .string(let s): return (any as? String) == s
             case .bool(let b):   return (any as? Bool) == b
+            case .approvingReviewEvent:
+                // Resolved through the SINK'S OWN function rather than a
+                // mirrored comparison, because that sink is loose: it does
+                // `raw.lowercased()` and aliases `"approved"`. An exact match
+                // on `"approve"` would let "Approve", "APPROVE" and "approved"
+                // through the ungated tool as live approvals. Calling the real
+                // parser means any spelling added there is refused here in the
+                // same commit — there is no lockstep left to forget.
+                guard let raw = any as? String else { return false }
+                return PrOpActionHandler.reviewEvent(raw) == .approve
             }
         }
 
@@ -103,6 +121,7 @@ enum GitMageMCPServer {
             switch self {
             case .string(let s): return s
             case .bool(let b):   return b
+            case .approvingReviewEvent: return ReviewEvent.approve.rawValue
             }
         }
 
@@ -110,6 +129,7 @@ enum GitMageMCPServer {
             switch self {
             case .string(let s): return "\"\(s)\""
             case .bool(let b):   return "\(b)"
+            case .approvingReviewEvent: return "an approving review"
             }
         }
     }

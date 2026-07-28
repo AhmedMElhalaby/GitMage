@@ -169,7 +169,13 @@ final class PrOpActionHandler {
     }
 
     /// Accepts the model-facing spellings as well as the GitHub wire values.
-    private static func reviewEvent(_ raw: String) -> ReviewEvent? {
+    ///
+    /// **This is the sink `GitMageMCPServer`'s `pr_review` guard resolves
+    /// through.** The guard does not mirror this logic, it CALLS it, so the two
+    /// cannot drift: any spelling added here that resolves to `.approve` is
+    /// refused by the ungated tool automatically. `nonisolated` so
+    /// `ArgumentValue.matches` can reach it. Keep it total and side-effect free.
+    nonisolated static func reviewEvent(_ raw: String) -> ReviewEvent? {
         switch raw.lowercased() {
         case "approve", "approved": return .approve
         case "requestchanges", "request_changes": return .requestChanges

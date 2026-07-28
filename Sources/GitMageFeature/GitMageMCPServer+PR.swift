@@ -31,11 +31,19 @@ import Foundation
 ///   ordinary work while protecting nothing that is actually at risk. (This
 ///   matches the host's own `GitPrTool.prOperations`, which listed only
 ///   `mergePR`.)
-/// - `pr_comment` / `pr_review` — **false**, same reasoning: a POST that appends
-///   a comment or a review. Nothing is overwritten and the author can delete it.
-///   A review is the closer call, since an `approve` can trip branch-protection
-///   auto-merge — but the merge itself is what the gate should stop, and
-///   `pr_merge` already carries the flag.
+/// - `pr_comment` — **false**, same reasoning: a POST that appends a comment.
+///   Nothing is overwritten and the author can delete it.
+/// - `pr_review` / `pr_approve` — **argument-dependent**, so they are SPLIT,
+///   exactly like `reset`/`reset_hard` in the git table. A `comment` or
+///   `requestChanges` review is additive and reversible; an `approve` can
+///   satisfy branch protection and auto-merge the PR, i.e. cause the one
+///   irreversible outcome in this table *indirectly*, without ever calling
+///   `pr_merge`. A single static flag cannot express that, and the host's
+///   `hasOptionLookingValue` will not catch a bare `"approve"` — it only looks
+///   for option-shaped strings — so nothing else was gating it. `pr_review`
+///   therefore REJECTS an approving event and `pr_approve` is the
+///   `destructive: true` twin that injects one. As with `reset`, the rejection
+///   is the load-bearing half.
 /// - Listing, viewing and check status are `readOnly` and plainly not
 ///   destructive.
 ///
@@ -63,10 +71,21 @@ extension GitMageMCPServer {
         Tool("pr_comment", "commentPR", "Post a comment on a pull request.",
              route: .pullRequest,
              argsHint: "{\"number\": number (required), \"body\": string (required)}"),
-        Tool("pr_review", "reviewPR", "Submit a review on a pull request.",
+        Tool("pr_review", "reviewPR",
+             "Submit a non-approving review on a pull request (comment or requestChanges). "
+             + "Use pr_approve to approve — an approval can trigger auto-merge.",
              route: .pullRequest,
              argsHint: "{\"number\": number (required), "
-             + "\"event\": \"approve\"|\"requestChanges\"|\"comment\" (required), \"body\": string}"),
+             + "\"event\": \"requestChanges\"|\"comment\" (required), \"body\": string}. "
+             + "\"approve\" is refused here — call pr_approve to approve a pull request.",
+             rejects: (key: "event", value: .approvingReviewEvent)),
+        Tool("pr_approve", "reviewPR",
+             "Approve a pull request. On a repository with auto-merge enabled this can "
+             + "merge it immediately, which cannot be undone.",
+             route: .pullRequest, destructive: true,
+             argsHint: "{\"number\": number (required), \"body\": string} — "
+             + "event is always \"approve\".",
+             injects: (key: "event", value: .approvingReviewEvent)),
         Tool("pr_merge", "mergePR", "Merge a pull request. This rewrites the base branch.",
              route: .pullRequest, destructive: true,
              argsHint: "{\"number\": number (required), "
