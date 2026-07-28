@@ -31,6 +31,36 @@ final class GitHubProviderTests: XCTestCase {
         catch { XCTFail("wrong error") }
     }
 
+    /// A 422 must carry GitHub's reason: "server 422" gives the caller nothing
+    /// to act on and invites an identical retry.
+    func testValidationFailureCarriesGitHubsReason() async {
+        let p = makeProvider(status: 422, body: """
+        {"message":"Validation Failed","errors":[{"resource":"PullRequest","field":"base",
+         "code":"invalid","message":"No commits between main and feat"}]}
+        """)
+        do {
+            _ = try await p.createPullRequest(repo, title: "t", body: "b",
+                                              head: "feat", base: "main", draft: false)
+            XCTFail("expected throw")
+        } catch let e as ForgeError {
+            XCTAssertEqual(e, .invalidRequest("Validation Failed — No commits between main and feat"))
+            XCTAssertEqual(e.errorDescription, "Validation Failed — No commits between main and feat")
+        } catch { XCTFail("wrong error") }
+    }
+
+    /// The detail-less shape ("A pull request already exists for o:feat.") must
+    /// still reach the caller rather than being dropped for lack of `errors`.
+    func testValidationFailureWithoutErrorDetailsUsesTheTopLevelMessage() async {
+        let p = makeProvider(status: 422, body: "{\"message\":\"A pull request already exists for o:feat.\"}")
+        do {
+            _ = try await p.createPullRequest(repo, title: "t", body: "b",
+                                              head: "feat", base: "main", draft: false)
+            XCTFail("expected throw")
+        } catch let e as ForgeError {
+            XCTAssertEqual(e, .invalidRequest("A pull request already exists for o:feat."))
+        } catch { XCTFail("wrong error") }
+    }
+
     func testSubmitReviewSendsEventInBody() async throws {
         let p = makeProvider(status: 200, body: "{}")
         try await p.submitReview(repo, number: 7, event: .approve, body: "LGTM")

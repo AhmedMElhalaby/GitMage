@@ -156,10 +156,31 @@ final class GitHubProvider: GitForgeProvider {
         case 401: throw ForgeError.unauthorized
         case 403: throw ForgeError.forbidden(message(data) ?? "Forbidden (check token scope or rate limit).")
         case 404: throw ForgeError.notFound
+        // 422 is GitHub's answer to the most common `createPullRequest`
+        // failures — no commits between base and head, a PR that already
+        // exists, an unknown base/head. Collapsing it to `.server(422)` left
+        // the caller with a status code and no reason, whose only sensible
+        // next move is to retry the identical call. The body carries the
+        // reason, so it is extracted like the 403 branch above.
+        case 422: throw ForgeError.invalidRequest(validationMessage(data) ?? "Rejected by GitHub (422).")
         default: throw ForgeError.server(http.statusCode)
         }
     }
     private static func message(_ data: Data) -> String? {
         (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["message"] as? String
+    }
+    /// The 422 reason. GitHub's top-level `message` is usually just
+    /// "Validation Failed"; the actionable text lives in `errors[].message`
+    /// (or, when it has none, the field/code pair), so both are joined.
+    private static func validationMessage(_ data: Data) -> String? {
+        let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        let top = root?["message"] as? String
+        let details = (root?["errors"] as? [[String: Any]] ?? []).compactMap { entry -> String? in
+            if let text = entry["message"] as? String, !text.isEmpty { return text }
+            guard let field = entry["field"] as? String else { return entry["code"] as? String }
+            return [field, entry["code"] as? String].compactMap { $0 }.joined(separator: ": ")
+        }
+        let parts = [top].compactMap { $0 } + details
+        return parts.isEmpty ? nil : parts.joined(separator: " — ")
     }
 }

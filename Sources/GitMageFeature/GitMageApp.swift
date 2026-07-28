@@ -40,10 +40,9 @@ extension GitMageApp: AinkradAppMCP {
 
 /// Generation 8: release this instance when the host closes it.
 ///
-/// `GitMageRuntime` held three static, never-evicted registries — settings
-/// store, context bridge, and the `gitmage.git_op` action token. Closing Git
-/// Mage left all three live for the rest of the process, including a context
-/// source the agent kept consulting.
+/// `GitMageRuntime` held static, never-evicted registries — settings store,
+/// context bridge, MCP server. Closing Git Mage left them all live for the rest
+/// of the process, including a context source the agent kept consulting.
 ///
 /// `host` is nil here because teardown is keyed on identity alone; the runtime
 /// keeps the tokens it needs to unregister.

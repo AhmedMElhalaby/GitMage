@@ -154,6 +154,49 @@ struct GitMageMCPServerTests {
         }
     }
 
+    /// Invariant 1 of the split-tool pattern, enforced over the WHOLE table
+    /// (git + PR) rather than by naming the pairs: a tool that injects a
+    /// dangerous argument itself must carry `destructive: true`, because that
+    /// flag is the only thing routing the call to the host's approval gate.
+    /// Adding a third pair without the flag would be a silent, ungated
+    /// irreversible tool — this fails instead.
+    @Test func everyInjectingToolIsDestructive() {
+        for tool in GitMageMCPServer.tools {
+            guard let rule = tool.injects else { continue }
+            let reason = "\(tool.name) injects args.\(rule.key) = \(rule.value.described) "
+                + "but is not destructive: true — it would be ungated"
+            #expect(tool.destructive, Comment(rawValue: reason))
+        }
+    }
+
+    /// Invariant 2, also table-driven: a refused argument must remain reachable
+    /// through a published twin that injects it. Without the twin the safe half
+    /// refuses a capability nothing else can supply — the pattern would silently
+    /// delete functionality instead of gating it. The twin is matched
+    /// structurally (same operation, same key, and its injected value is one the
+    /// rejecting rule would actually catch), so a future pair is covered without
+    /// being named here.
+    @Test func everyRejectedArgumentHasAPublishedInjectingTwin() async {
+        let (server, _) = makeServer(RecordingForwarder())
+        let listed = Set(await listedTools(server).compactMap { $0["name"] as? String })
+        for tool in GitMageMCPServer.tools {
+            guard let rule = tool.rejects else { continue }
+            let twin = GitMageMCPServer.tools.first { candidate in
+                guard candidate.name != tool.name, candidate.operation == tool.operation,
+                      let injected = candidate.injects, injected.key == rule.key else { return false }
+                return rule.value.matches(injected.value.foundation)
+            }
+            guard let twin else {
+                let reason = "\(tool.name) refuses args.\(rule.key) = \(rule.value.described) "
+                    + "but no tool injects it — the capability is gone, not gated"
+                Issue.record(Comment(rawValue: reason))
+                continue
+            }
+            #expect(listed.contains(twin.name),
+                    Comment(rawValue: "\(twin.name) is the twin for \(tool.name) but was not published"))
+        }
+    }
+
     @Test func splitVariantsExistAndAreDestructive() async {
         let (server, _) = makeServer(RecordingForwarder())
         let listed = await listedTools(server)

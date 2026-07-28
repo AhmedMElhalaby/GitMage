@@ -4,9 +4,10 @@ import AinkradAppKit
 /// Publishes Git Mage's git operations to the host assistant as MCP tools.
 ///
 /// One tool per operation the host's old hard-coded `git_op` tool advertised.
-/// Every tool forwards to the SAME `GitOpActionHandler` the `gitmage.git_op`
-/// action used, with the tool name's operation token injected, so behaviour is
-/// identical to the pre-MCP path — this is a new front door, not a new backend.
+/// Every tool forwards to the SAME `GitOpActionHandler` the (now removed)
+/// `gitmage.git_op` action used, with the tool name's operation token injected,
+/// so behaviour is identical to the pre-MCP path — this was a new front door,
+/// not a new backend, and it is now the only one.
 ///
 /// `destructive` mirrors `GitOpTool.destructiveOperations` verbatim, because it
 /// is what the host's Full-auto guard gates on. The host also treated two cases
@@ -67,6 +68,15 @@ enum GitMageMCPServer {
         /// individual spellings.
         var rejects: (key: String, value: ArgumentValue)?
         /// An `args` key this tool sets itself, ignoring whatever was passed.
+        ///
+        /// Two invariants hold across the whole table and are checked
+        /// structurally (not by name) in `GitMageMCPServerTests`, so a future
+        /// pair is covered without touching the tests:
+        /// `everyInjectingToolIsDestructive` — anything that injects must be
+        /// `destructive: true`, or it is an ungated irreversible tool; and
+        /// `everyRejectedArgumentHasAPublishedInjectingTwin` — every `rejects`
+        /// key must be reachable through a published twin, or the safe half
+        /// deletes a capability instead of gating it.
         var injects: (key: String, value: ArgumentValue)?
 
         init(_ name: String, _ operation: String, _ summary: String,

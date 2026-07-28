@@ -63,28 +63,18 @@ enum GitMageRuntime {
     }
 
     private static let contextTokens = PluginInstanceStorage<PluginContextToken>()
-    private static let actionTokens = PluginInstanceStorage<AgentActionToken>()
     private static let sharedClient = GitRepositoryClient()
-
-    /// Register the host's `gitmage.git_op` handler **once**. Reuses one
-    /// `GitRepositoryClient` (path-scoped per call). Never torn down.
-    static func registerActions(for host: HostServices) {
-        let handler = GitOpActionHandler(client: sharedClient)
-        _ = actionTokens.value(for: instance(of: host)) {
-            host.actions.register(actionID: "gitmage.git_op") { json in
-                await handler.run(json)
-            }
-        }
-    }
 
     private static let mcpServers = PluginInstanceStorage<MCPAppServer>()
 
     /// The per-host MCP server, created once and cached (mirrors
-    /// `contextBridge`). Its git tools forward to the same `GitOpActionHandler`
-    /// and the same shared `GitRepositoryClient` the `gitmage.git_op` action
-    /// uses, so both front doors behave identically while they coexist; its PR
-    /// tools forward to `PrOpActionHandler`, which drives the same
-    /// `GitHubProvider` and the same token the Pull Requests UI uses.
+    /// `contextBridge`). This is the ONLY front door onto git for the
+    /// assistant: the `gitmage.git_op` action seam it used to sit beside was
+    /// removed once the host's bespoke `git_op` tool — its only caller — was
+    /// deleted. Its git tools drive `GitOpActionHandler` over one shared
+    /// `GitRepositoryClient` (path-scoped per call); its PR tools forward to
+    /// `PrOpActionHandler`, which drives the same `GitHubProvider` and the same
+    /// token the Pull Requests UI uses.
     static func mcpServer(for host: HostServices) -> MCPAppServer {
         mcpServers.value(for: instance(of: host)) {
             let handler = GitOpActionHandler(client: sharedClient)
@@ -104,14 +94,13 @@ enum GitMageRuntime {
     }
 
     /// Releases everything scoped to `instance` and unregisters it from the
-    /// host. The three registries above were `static` and never evicted, so a
-    /// closed Git Mage left its settings store, its context source and its
-    /// `gitmage.git_op` action handler live for the rest of the process.
+    /// host. The registries above were `static` and never evicted, so a closed
+    /// Git Mage left its settings store, its context source and its MCP server
+    /// live for the rest of the process.
     static func teardown(instance: PluginInstanceID, host: HostServices?) {
         stores.remove(instance)
         bridges.remove(instance)
         mcpServers.remove(instance)
         if let token = contextTokens.remove(instance) { host?.context.remove(token) }
-        if let token = actionTokens.remove(instance) { host?.actions.remove(token) }
     }
 }

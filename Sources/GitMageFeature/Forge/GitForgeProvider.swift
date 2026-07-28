@@ -7,6 +7,12 @@ enum ForgeError: Error, LocalizedError, Equatable {
     case unauthorized
     case forbidden(String)
     case notFound
+    /// A 422 the forge rejected on its merits — "No commits between base and
+    /// head", "A pull request already exists for …", an invalid base/head. The
+    /// reason is carried verbatim because it is the only thing that tells the
+    /// caller (or the assistant driving `pr_create`) to change the request
+    /// rather than retry the identical one.
+    case invalidRequest(String)
     case server(Int)
     case decoding
     case transport(String)
@@ -16,6 +22,7 @@ enum ForgeError: Error, LocalizedError, Equatable {
         case .unauthorized: return "Invalid or missing GitHub token."
         case .forbidden(let message): return message
         case .notFound: return "Not found."
+        case .invalidRequest(let message): return message
         case .server(let code): return "GitHub server error (\(code))."
         case .decoding: return "Unexpected response from GitHub."
         case .transport(let message): return message
