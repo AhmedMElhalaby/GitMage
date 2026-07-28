@@ -7,6 +7,12 @@ enum ForgeError: Error, LocalizedError, Equatable {
     case unauthorized
     case forbidden(String)
     case notFound
+    /// A 422 the forge rejected on its merits — "No commits between base and
+    /// head", "A pull request already exists for …", an invalid base/head. The
+    /// reason is carried verbatim because it is the only thing that tells the
+    /// caller (or the assistant driving `pr_create`) to change the request
+    /// rather than retry the identical one.
+    case invalidRequest(String)
     case server(Int)
     case decoding
     case transport(String)
@@ -16,6 +22,7 @@ enum ForgeError: Error, LocalizedError, Equatable {
         case .unauthorized: return "Invalid or missing GitHub token."
         case .forbidden(let message): return message
         case .notFound: return "Not found."
+        case .invalidRequest(let message): return message
         case .server(let code): return "GitHub server error (\(code))."
         case .decoding: return "Unexpected response from GitHub."
         case .transport(let message): return message
@@ -38,6 +45,11 @@ protocol GitForgeProvider {
     func addComment(_ repo: RepoRef, number: Int, body: String) async throws
     func submitReview(_ repo: RepoRef, number: Int, event: ReviewEvent, body: String) async throws
     func merge(_ repo: RepoRef, number: Int, method: MergeMethod) async throws
+    /// Opens a pull request and returns its number.
+    func createPullRequest(_ repo: RepoRef, title: String, body: String,
+                           head: String, base: String, draft: Bool) async throws -> Int
+    /// Reopens or closes an existing pull request. `.all` is not a settable state.
+    func setPullRequestState(_ repo: RepoRef, number: Int, state: PRState) async throws
 
     func listIssues(_ repo: RepoRef, state: IssueState) async throws -> [IssueSummary]
     /// Paginated issue search (text + labels) via the forge search API.
