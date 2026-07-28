@@ -33,6 +33,27 @@ enum GitMageMCPServer {
         /// An `args` key this tool must refuse — the caller has to use the
         /// destructive twin instead. Refusing `("mode", .string("hard"))` means
         /// `mode: hard` never reaches git through the ungated tool.
+        ///
+        /// **This is an EXACT match, and that is safe only because it uses the
+        /// same coercion as the sink.** `GitOpActionHandler.run` reads the two
+        /// guarded arguments as `ResetMode(rawValue: (args["mode"] as? String)
+        /// ?? "mixed")` and `(args["force"] as? Bool) ?? false`. `ResetMode` is
+        /// a lower-case `String` raw-value enum with an exact `init(rawValue:)`,
+        /// so `"Hard"`, `" hard"` and a non-string `mode` all fail at the SINK
+        /// rather than slipping past this guard into git; `1` bridges to
+        /// `NSNumber`, which `as? Bool` accepts at BOTH ends, so the guard
+        /// catches it.
+        ///
+        /// If the handler is ever made more tolerant — `rawValue:
+        /// mode.lowercased()`, a trimming step, an alias table, a string-to-bool
+        /// coercion for `force` — this guard MUST be widened in lockstep, or the
+        /// ungated tool becomes a live hard reset / forced removal with no
+        /// approval gate. In `GitMageMCPServerTests`,
+        /// `theResetSinkIsCaseSensitiveWhichIsWhatMakesTheGuardSufficient` fails
+        /// first if that coupling breaks, and the
+        /// `resetNeverPerformsAHardResetHoweverModeIsSpelled` /
+        /// `removeWorktreeNeverForcesHoweverForceIsSpelled` tables cover the
+        /// individual spellings.
         var rejects: (key: String, value: ArgumentValue)?
         /// An `args` key this tool sets itself, ignoring whatever was passed.
         var injects: (key: String, value: ArgumentValue)?
@@ -117,7 +138,8 @@ enum GitMageMCPServer {
         Tool("tags", "tags", "List the repository's tags.", readOnly: true),
         Tool("remove_worktree", "removeWorktree", "Remove a clean worktree. "
              + "Use remove_worktree_force to remove one with uncommitted changes.",
-             argsHint: "{\"path\": string} (required)",
+             argsHint: "{\"path\": string} (required). \"force\" is refused here — "
+             + "call remove_worktree_force to remove a worktree with uncommitted changes.",
              rejects: (key: "force", value: .bool(true))),
         Tool("remove_worktree_force", "removeWorktree",
              "Force-remove a worktree, DISCARDING any uncommitted changes in it.",

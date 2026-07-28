@@ -52,6 +52,45 @@ private func destructiveHint(_ tool: [String: Any]) -> Bool {
     (tool["annotations"] as? [String: Any])?["destructiveHint"] as? Bool ?? false
 }
 
+// MARK: - evasion cases
+//
+// File-scope (not nested in the suite) because `@Test(arguments:)` reads the
+// table from outside the actor, and the suite is `@MainActor`.
+
+/// One spelling of a dangerous argument. The value is built by a closure so the
+/// table can hold heterogeneous JSON values and still be `Sendable`.
+struct Evasion: Sendable, CustomStringConvertible {
+    let label: String
+    let value: @Sendable () -> Any
+    init(_ label: String, _ value: @escaping @Sendable () -> Any) {
+        self.label = label
+        self.value = value
+    }
+    var description: String { label }
+}
+
+/// Casings, types and wrappings a caller could try in place of the literal
+/// `mode: "hard"` that `reset`'s guard rejects.
+let resetEvasions: [Evasion] = [
+    Evasion("capitalised") { "Hard" },
+    Evasion("upper-cased") { "HARD" },
+    Evasion("leading space") { " hard" },
+    Evasion("trailing space") { "hard " },
+    Evasion("number") { 1 },
+    Evasion("array wrapping the string") { ["hard"] },
+    Evasion("object wrapping the string") { ["mode": "hard"] },
+]
+
+/// The same, for the literal `force: true` that `remove_worktree`'s guard
+/// rejects. (`1` is covered separately — it bridges to `NSNumber` and IS caught.)
+let forceEvasions: [Evasion] = [
+    Evasion("string \"true\"") { "true" },
+    Evasion("string \"TRUE\"") { "TRUE" },
+    Evasion("string \"yes\"") { "yes" },
+    Evasion("array wrapping true") { [true] },
+    Evasion("object wrapping true") { ["force": true] },
+]
+
 // MARK: - tests
 
 @MainActor
@@ -173,6 +212,116 @@ struct GitMageMCPServerTests {
                        arguments: ["repoPath": "/r", "args": ["path": "/w"]])
         #expect(recorder.lastObject?["operation"] as? String == "removeWorktree")
         #expect((recorder.lastObject?["args"] as? [String: Any])?["force"] as? Bool == true)
+    }
+
+    // MARK: - evasion of the ungated tools' guards
+    //
+    // The property under test is NOT "the call returned an error" — an error
+    // string would still read as a pass if the dangerous argument leaked past
+    // it. It is: **a hard reset / a forced worktree removal never happens
+    // through the ungated tool**. So every case asserts on the payload actually
+    // forwarded to `GitOpActionHandler`, resolved through the handler's OWN
+    // coercion expression (`resolvedMode` / `resolvedForce` below).
+
+    /// The exact expression `GitOpActionHandler.run` uses for `reset`'s mode
+    /// (`ResetMode(rawValue: (args["mode"] as? String) ?? "mixed")`). Mirrored
+    /// here so an evasion case is judged by what the SINK would do, not by what
+    /// the guard happens to catch.
+    private func resolvedMode(_ payload: [String: Any]?) -> ResetMode? {
+        guard let payload else { return nil }   // nothing forwarded → nothing ran
+        let args = payload["args"] as? [String: Any] ?? [:]
+        return ResetMode(rawValue: (args["mode"] as? String) ?? "mixed")
+    }
+
+    /// The exact expression `GitOpActionHandler.run` uses for `removeWorktree`'s
+    /// force flag: `(args["force"] as? Bool) ?? false`.
+    private func resolvedForce(_ payload: [String: Any]?) -> Bool {
+        guard let payload else { return false }
+        let args = payload["args"] as? [String: Any] ?? [:]
+        return (args["force"] as? Bool) ?? false
+    }
+
+    @Test(arguments: resetEvasions)
+    func resetNeverPerformsAHardResetHoweverModeIsSpelled(evasion: Evasion) async {
+        let recorder = RecordingForwarder()
+        let (server, _) = makeServer(recorder)
+        _ = await call(server, "reset",
+                       arguments: ["repoPath": "/r", "args": ["ref": "HEAD~1", "mode": evasion.value()]])
+        #expect(resolvedMode(recorder.lastObject) != .hard,
+                "reset reached a hard reset via \(evasion.label)")
+    }
+
+    @Test func resetIgnoresANestedOrDifferentlyCasedModeKey() async {
+        let recorder = RecordingForwarder()
+        let (server, _) = makeServer(recorder)
+
+        // A nested `args.args.mode` — neither the guard nor the sink reads it.
+        _ = await call(server, "reset",
+                       arguments: ["repoPath": "/r", "args": ["ref": "HEAD~1", "args": ["mode": "hard"]]])
+        #expect(resolvedMode(recorder.lastObject) != .hard, "a nested args.mode reached the sink")
+
+        // A `"Mode"` key: missed by the guard, and equally missed by the sink.
+        _ = await call(server, "reset",
+                       arguments: ["repoPath": "/r", "args": ["ref": "HEAD~1", "Mode": "hard"]])
+        #expect(resolvedMode(recorder.lastObject) != .hard, "a differently-cased Mode key reached the sink")
+    }
+
+    @Test(arguments: forceEvasions)
+    func removeWorktreeNeverForcesHoweverForceIsSpelled(evasion: Evasion) async {
+        let recorder = RecordingForwarder()
+        let (server, _) = makeServer(recorder)
+        _ = await call(server, "remove_worktree",
+                       arguments: ["repoPath": "/r", "args": ["path": "/w", "force": evasion.value()]])
+        #expect(resolvedForce(recorder.lastObject) == false,
+                "remove_worktree reached a forced removal via \(evasion.label)")
+    }
+
+    @Test func removeWorktreeRejectsNumericTrueAndIgnoresNearMissKeys() async {
+        let recorder = RecordingForwarder()
+        let (server, _) = makeServer(recorder)
+
+        // `1` bridges to NSNumber, which `as? Bool` accepts — so BOTH the guard
+        // and the sink read it as true. The guard must therefore reject it, and
+        // nothing may be forwarded.
+        let numeric = await call(server, "remove_worktree",
+                                 arguments: ["repoPath": "/r", "args": ["path": "/w", "force": 1]])
+        #expect(numeric.isError)
+        #expect(recorder.payloads.isEmpty, "force: 1 was forwarded instead of rejected")
+
+        _ = await call(server, "remove_worktree",
+                       arguments: ["repoPath": "/r", "args": ["path": "/w", "args": ["force": true]]])
+        #expect(resolvedForce(recorder.lastObject) == false, "a nested args.force reached the sink")
+
+        _ = await call(server, "remove_worktree",
+                       arguments: ["repoPath": "/r", "args": ["path": "/w", "Force": true]])
+        #expect(resolvedForce(recorder.lastObject) == false, "a differently-cased Force key reached the sink")
+    }
+
+    /// Pins the coupling the `reset` guard depends on, **through the real
+    /// sink**. The guard rejects only the LITERAL `mode: "hard"`; every spelling
+    /// in `resetEvasions` is safe solely because `GitOpActionHandler` parses the
+    /// mode with an exact, case-sensitive `ResetMode(rawValue:)` and refuses
+    /// anything else before it reaches git.
+    ///
+    /// This drives the actual handler rather than a mirror of it, so making it
+    /// tolerant (`rawValue: mode.lowercased()`, a trimming step, an alias table)
+    /// fails HERE — which is the whole point: a mirrored expression in the test
+    /// would keep passing while `"Hard"` became a live, ungated hard reset.
+    ///
+    /// Git-free: the `reset` branch validates `ref` and then `mode`, returning
+    /// the mode error before it ever calls `GitRepositoryClient`.
+    @Test func theResetSinkRejectsEveryNonExactSpellingOfHard() async {
+        let handler = GitOpActionHandler(client: GitRepositoryClient())
+        for spelling in ["Hard", "HARD", " hard", "hard "] {
+            let payload = #"{"operation":"reset","repoPath":"/nonexistent","args":{"ref":"HEAD~1","mode":"\#(spelling)"}}"#
+            let result = await handler.run(payload)
+            #expect(result.isError, "GitOpActionHandler now accepts mode \"\(spelling)\"")
+            #expect(result.text.contains("must be soft, mixed, or hard"),
+                    "GitOpActionHandler now coerces mode \"\(spelling)\" instead of refusing it — widen GitMageMCPServer's reset guard in lockstep, or the ungated reset tool becomes a live hard reset")
+        }
+        // The exact spelling is the one the guard already refuses, so it must
+        // stay the ONLY spelling the sink accepts.
+        #expect(ResetMode(rawValue: "hard") == .hard)
     }
 
     @Test func runtimeCachesOneServerPerHostAndEvictsIt() async {
