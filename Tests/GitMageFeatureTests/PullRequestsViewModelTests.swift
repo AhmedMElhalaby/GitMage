@@ -170,6 +170,9 @@ private final class StubForgeProvider: GitForgeProvider {
         mergeCalls.append(method)
     }
 
+    func createPullRequest(_ repo: RepoRef, title: String, body: String, head: String, base: String, draft: Bool) async throws -> Int { 0 }
+    func setPullRequestState(_ repo: RepoRef, number: Int, state: PRState) async throws {}
+
     func listIssues(_ repo: RepoRef, state: IssueState) async throws -> [IssueSummary] { [] }
     func searchIssues(_ repo: RepoRef, state: IssueState, query: String, labels: [String], page: Int) async throws -> ForgePage<IssueSummary> {
         ForgePage(items: [], totalCount: 0)

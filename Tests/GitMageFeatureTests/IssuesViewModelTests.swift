@@ -132,6 +132,8 @@ private final class StubIssueForgeProvider: GitForgeProvider {
     func addComment(_ repo: RepoRef, number: Int, body: String) async throws {}
     func submitReview(_ repo: RepoRef, number: Int, event: ReviewEvent, body: String) async throws {}
     func merge(_ repo: RepoRef, number: Int, method: MergeMethod) async throws {}
+    func createPullRequest(_ repo: RepoRef, title: String, body: String, head: String, base: String, draft: Bool) async throws -> Int { 0 }
+    func setPullRequestState(_ repo: RepoRef, number: Int, state: PRState) async throws {}
 
     func listIssues(_ repo: RepoRef, state: IssueState) async throws -> [IssueSummary] {
         listIssuesCallCount += 1
